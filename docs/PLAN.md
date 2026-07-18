@@ -118,30 +118,67 @@ Reemplaza el escaneo por sesión de `DirectoryFileCache` por un índice persiste
      por nombre) y se reportan en `FailedExtractions`.
    - `IndexQuery` (hecho): FTS5 con prefijo por token + filtros combinables (categoría,
      versión, carpeta con subcarpetas, favoritos, tag) + `GetCategories()`.
-3. `IndexedDirectorySource`: nueva implementación de `FamilySource<TOptions>` (o adaptación de `DirectorySource`) que consulta el índice en vez de escanear. La jerarquía de carpetas se reconstruye desde la columna `folder`. Mantener `DirectorySource` original intacta como opción de compatibilidad — decidir en ARCHITECTURE.md si conviven o se reemplaza.
-4. Indexación inicial y re-scan: comando en la UI de settings ("Reindexar"), más re-scan automático ligero al abrir Revit (solo diff de mtimes, sin releer metadatos).
-5. Prueba de estrés con la librería real completa (decenas de miles de .rfa): medir tiempo de indexación inicial, tiempo de re-scan incremental y latencia de búsqueda. Objetivos: re-scan < 10 s, búsqueda < 100 ms.
+3. **Hecha:** `IndexedDirectorySource` — tipo de fuente nuevo que CONVIVE con `DirectorySource`
+   (decisión y diseño en ARCHITECTURE § Registro): carpetas/familias desde el índice, scan
+   incremental en background al abrir y en cada Reload (el refresh del panel = reindexar).
+4. **Hecha:** "Reindex now" en el settings de la fuente indexada (con resumen) + re-scan
+   automático ligero al abrir (primera enumeración de la sesión).
+5. **Hecha:** estrés funcional (carpeta real `prueba`, 6 .rfa: 169 ms / 4 ms) y de escala
+   (sintético 25.000: inicial 25.1 s, re-scan 1.5 s, FTS máx 56 ms) — métricas en PROGRESS.md.
 
 ### Criterios de aceptación
-- [ ] Tests verdes de PartAtom/BasicFileInfo con fixtures reales (verificar categoría y tipos contra lo que muestra Revit).
-- [ ] Índice completo de la librería real construido; métricas registradas en PROGRESS.md.
-- [ ] Segundo arranque de Revit: panel poblado desde el índice sin escaneo completo.
-- [ ] Buscar por nombre de tipo (no solo de archivo) devuelve resultados correctos.
+- [x] Tests verdes de PartAtom con fixtures reales (categoría y tipos verificados contra Revit
+      por el usuario; `BasicFileInfoReader` pospuesto — ver ajuste de tareas). *(35/35 tests)*
+- [x] Índice completo de la librería real construido; métricas registradas en PROGRESS.md.
+      *(Smoke test del usuario: 191 familias indexadas en 1.7 s, 0 fallos)*
+- [x] Segundo arranque de Revit: panel poblado desde el índice sin escaneo completo.
+      *(Re-scan incremental de 36 ms verificado por el usuario; navegación y drag & drop OK)*
+- [x] Buscar por nombre de tipo (no solo de archivo) devuelve resultados correctos.
+      *(Test FTS "96" → familia por nombre de tipo; búsqueda global en UI llega en Fase 3)*
+
+> **Fase 2 CERRADA (2026-07-18).**
 
 ---
 
-## Fase 3 — Búsqueda y UX (2 sesiones)
+## Fase 3 — Búsqueda y UX (2-3 sesiones)
 
-1. Caja de búsqueda global sobre FTS5 (hoy `FilterFamilies` solo filtra el árbol cargado por nombre de archivo) con resultados agregados de todas las fuentes indexadas.
-2. Filtros combinables: categoría, versión de Revit, tags, favoritos.
-3. Tags y favoritos: menú contextual sobre la familia (persisten en el índice, no tocan los .rfa).
-4. Vista galería (grid de miniaturas) además del árbol, aprovechando Ui.Standard/Ui.Modern.
-5. Aviso de versión al cargar: si `revit_version` del archivo > versión del documento activo → bloquear con mensaje claro; si es menor → advertir que Revit lo actualizará.
+1. Caja de búsqueda global sobre FTS5 (hoy `FilterFamilies` solo filtra el árbol cargado por
+   nombre de archivo) con resultados agregados de todas las fuentes indexadas, servida por
+   `IndexQuery.Search`.
+2. Filtros combinables: categoría, versión de Revit, tags, favoritos. Las categorías filtran
+   por `category_key` cuando existe (unifica "Furniture"↔"Mobiliario") con fallback al texto
+   localizado.
+3. Mapa de localización de categorías (`CategoryKeyMap` en Index): tabla EN/ES de las
+   categorías estándar de familias de Revit → clave estable; el scanner rellena
+   `category_key` al extraer y un pase post-scan lo completa para filas ya indexadas cuando
+   el mapa crece. Términos fuera del mapa → key null (se filtra por texto localizado).
+4. Tags y favoritos: API en Index (persisten en el índice, no tocan los .rfa) + menú
+   contextual sobre la tarjeta de familia.
+5. Vista galería (grid de miniaturas) además del árbol, aprovechando Ui.Standard/Ui.Modern.
+6. Aviso de versión al cargar: comparar el `product-version` del PartAtom (autoritativo —
+   verificado que el nombre de archivo puede mentir) contra la versión del documento activo:
+   mayor → bloquear con mensaje claro; menor → advertir que Revit actualizará el archivo.
+7. **Inserción con clic** (alternativa al drag & drop): doble clic en la tarjeta coloca el
+   tipo por defecto de la familia; clic sobre un tipo específico (familias multi-tipo)
+   coloca ese tipo. Ambos caminos: cargar la familia si hace falta y disparar
+   `PostRequestForElementTypePlacement` vía `ExternalEvent`/`IExternalEventHandler` (estudiar
+   primero cómo lo hace `FamilyDropHandler`, según regla del proyecto). Validación previa:
+   si la vista activa no admite la categoría de la familia → aviso claro al usuario; nunca
+   fallo silencioso.
 
 ### Criterios de aceptación
-- [ ] Buscar "silla" muestra resultados de toda la librería en < 1 s con miniaturas.
+- [ ] Buscar "silla" muestra resultados de toda la librería (todas las fuentes indexadas)
+      en < 1 s con miniaturas.
+- [ ] Filtrar por categoría unifica variantes de idioma: "Furniture" y "Mobiliario" caen en
+      el mismo filtro (via `category_key`); categorías fuera del mapa siguen filtrables por
+      su texto.
 - [ ] Tags/favoritos sobreviven reinicio de Revit.
-- [ ] Intento de cargar una familia 2026 en un documento 2025 se bloquea con aviso, no con el error críptico de Revit.
+- [ ] Intento de cargar una familia 2026 en un documento 2025 se bloquea con aviso, no con
+      el error críptico de Revit; familia antigua avisa del upgrade.
+- [ ] Doble clic en una tarjeta coloca el tipo por defecto en la vista activa; clic en un
+      tipo específico coloca ese tipo.
+- [ ] Con una vista activa que no admite la categoría (p. ej. familia 3D en una leyenda),
+      la inserción muestra un aviso claro y no hace nada más.
 
 ---
 

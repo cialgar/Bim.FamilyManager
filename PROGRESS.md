@@ -4,11 +4,12 @@
 
 ## Estado actual
 
-**Fase 1 CERRADA** (2026-07-18). **Fase activa: Fase 2 — COMPLETA salvo smoke test del
-usuario**: núcleo del índice (35/35 tests) + `IndexedDirectorySource` con re-scan en
-background + "Reindex now" en settings + estrés superado con margen. Desplegado en Revit 2026.
-**Última sesión:** 2026-07-18 — IndexedDirectorySource, Reindexar, estrés 25k, limpieza
-de la fuente fantasma.
+**Fases 0, 1 y 2 CERRADAS** (2026-07-18). Cierre de Fase 2 con smoke test del usuario:
+fuente indexada creada, **191 familias indexadas en 1.7 s, re-scan de 36 ms con 0 fallos**,
+navegación con miniaturas fluida y drag & drop colocando correctamente.
+**Fase activa: Fase 3** — búsqueda y UX (plan actualizado en PLAN.md, incluye la nueva
+tarea de inserción con clic vía ExternalEvent + PostRequestForElementTypePlacement).
+**Última sesión:** 2026-07-18 — cierre Fase 2, arranque Fase 3.
 
 ## Métricas de estrés (2026-07-18, harness fuera de Revit)
 
@@ -25,15 +26,16 @@ de la fuente fantasma.
   - Búsqueda FTS (8 tipos, 10 reps c/u): **mediana 0.2-42 ms, máx 56 ms** (objetivo < 100 ms ✔).
   - Set sintético y DB borrados al terminar (verificado).
 
-## Próximos pasos inmediatos
+## Próximos pasos inmediatos (Fase 3)
 
-1. **Usuario:** smoke test de la fuente indexada en Revit 2026 — Settings → Add → tipo
-   "Indexed Directory" → apuntar a una carpeta (p. ej. `Uploads LR`), Save; opcional
-   "Reindex now" en el settings. Verificar: navegación instantánea, familias visibles,
-   drag & drop, y que el botón refresh del panel dispara el re-scan incremental (log:
-   "Incremental index scan completed"). Con OK → cerrar Fase 2 (criterios en PLAN.md).
-2. Fase 3 — búsqueda global sobre FTS5 en la UI, filtros, tags/favoritos, mapa de
-   normalización de categorías ES/EN (`category_key`), aviso de versión al cargar.
+1. Núcleo puro (esta sesión): `CategoryKeyMap` + relleno de `category_key` en el scanner
+   (con pase post-scan para filas viejas) + filtro por `category_key` en `IndexQuery` +
+   API de tags/favoritos en Index. Todo con tests.
+2. UI Revit (próximas sesiones): búsqueda global FTS en el panel, filtros combinables,
+   vista galería, aviso de versión al cargar (product-version del PartAtom vs documento),
+   e inserción con clic (doble clic = tipo por defecto; clic en tipo = ese tipo) vía
+   ExternalEvent → PostRequestForElementTypePlacement con validación de vista activa —
+   estudiar primero `FamilyDropHandler` (regla del proyecto).
 3. Pendientes heredados: hueco Navigator; .rfa en raíz sin listar; PRs a scotec-revit
    (Category, InvariantCulture en `updated`, stream del loader sin disponer) + micro-PR
    upstream Bim.FamilyManager (fuente fantasma X:\ en DefaultFamilySources.json).
