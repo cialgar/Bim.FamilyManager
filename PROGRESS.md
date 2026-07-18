@@ -4,11 +4,16 @@
 
 ## Estado actual
 
-**Fases 0, 1 y 2 CERRADAS** (2026-07-18).
-**Fase activa: Fase 3 — IMPLEMENTACIÓN COMPLETA (núcleo + UI), desplegada en Revit 2026;
-pendiente el smoke test del usuario** (guion en el resumen de la sesión; criterios en
-PLAN.md § Fase 3). 51/51 tests verdes.
-**Última sesión:** 2026-07-18 — capa UI completa de Fase 3.
+**Fases 0, 1, 2 y 3 CERRADAS** (2026-07-18). Fase 3 verificada por el usuario con el smoke
+test A-F completo (búsqueda global, filtros unificados, favoritos/tags persistentes,
+galería, aviso de upgrade, doble clic, tipo específico, vista incompatible).
+**Residuo diferido de Fase 3:** verificar manualmente el BLOQUEO de versión 2026→2025
+cuando exista un entorno Revit 2025 (E.10) — misma lógica que el aviso verificado, con la
+comparación invertida.
+**Próximo:** mini-sesión de **branding** (adelanto de Fase 6, tarea 1: nombre propio,
+íconos, tab del ribbon, manteniendo atribución MIT al upstream). Requiere decisiones del
+usuario: nombre del producto, nombre del tab y assets/íconos.
+**Última sesión:** 2026-07-18 — cierre de Fase 3.
 
 ## Fase 3 — capa UI (sesión 2026-07-18, noche)
 

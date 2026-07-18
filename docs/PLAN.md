@@ -167,18 +167,24 @@ Reemplaza el escaneo por sesión de `DirectoryFileCache` por un índice persiste
    fallo silencioso.
 
 ### Criterios de aceptación
-- [ ] Buscar "silla" muestra resultados de toda la librería (todas las fuentes indexadas)
-      en < 1 s con miniaturas.
-- [ ] Filtrar por categoría unifica variantes de idioma: "Furniture" y "Mobiliario" caen en
+- [x] Buscar "silla" muestra resultados de toda la librería (todas las fuentes indexadas)
+      en < 1 s con miniaturas. *(Smoke test A del usuario, 2026-07-18)*
+- [x] Filtrar por categoría unifica variantes de idioma: "Furniture" y "Mobiliario" caen en
       el mismo filtro (via `category_key`); categorías fuera del mapa siguen filtrables por
-      su texto.
-- [ ] Tags/favoritos sobreviven reinicio de Revit.
-- [ ] Intento de cargar una familia 2026 en un documento 2025 se bloquea con aviso, no con
-      el error críptico de Revit; familia antigua avisa del upgrade.
-- [ ] Doble clic en una tarjeta coloca el tipo por defecto en la vista activa; clic en un
-      tipo específico coloca ese tipo.
-- [ ] Con una vista activa que no admite la categoría (p. ej. familia 3D en una leyenda),
-      la inserción muestra un aviso claro y no hace nada más.
+      su texto. *(Smoke test B)*
+- [x] Tags/favoritos sobreviven reinicio de Revit. *(Smoke test C, con reinicio)*
+- [x] Intento de cargar una familia 2026 en un documento 2025 se bloquea con aviso, no con
+      el error críptico de Revit; familia antigua avisa del upgrade. *(Mitad "upgrade"
+      verificada — smoke test E.9. El BLOQUEO 2026→2025 queda como verificación diferida
+      hasta disponer de un entorno Revit 2025 (E.10): es el mismo código con la comparación
+      invertida, cubierto por revisión, no por prueba manual.)*
+- [x] Doble clic en una tarjeta coloca el tipo por defecto en la vista activa; clic en un
+      tipo específico coloca ese tipo. *(Smoke test F.11/F.12)*
+- [x] Con una vista activa que no admite la categoría (p. ej. familia 3D en una leyenda),
+      la inserción muestra un aviso claro y no hace nada más. *(Smoke test F.13)*
+
+> **Fase 3 CERRADA (2026-07-18).** Residuo diferido: verificación manual del bloqueo de
+> versión 2026→2025 cuando exista entorno Revit 2025 (registrado en PROGRESS.md).
 
 ---
 
