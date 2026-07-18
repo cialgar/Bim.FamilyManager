@@ -11,6 +11,12 @@
   <Project Path="Bim.FamilyManager.Base/Bim.FamilyManager.Base.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="Bim.FamilyManager.Index.Tests/Bim.FamilyManager.Index.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="Bim.FamilyManager.Index/Bim.FamilyManager.Index.csproj">
+    <Platform Project="x64" />
+  </Project>
   <Project Path="Bim.FamilyManager.Rfa.Tests/Bim.FamilyManager.Rfa.Tests.csproj">
     <Platform Project="x64" />
   </Project>

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<IsPackable>false</IsPackable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.NET.Test.Sdk" />
+		<PackageReference Include="xunit" />
+		<PackageReference Include="xunit.runner.visualstudio" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Bim.FamilyManager.Index\Bim.FamilyManager.Index.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Reuse the real .rfa fixtures of the Rfa tests instead of duplicating them in the repository. -->
+		<None Include="..\Bim.FamilyManager.Rfa.Tests\fixtures\**" LinkBase="fixtures" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>
+
+</Project>
