@@ -190,13 +190,13 @@ public sealed class IndexScannerTests : IDisposable
     }
 
     [Fact]
-    public void Search_CategoryKeyIsNullUntilPhase3Normalization()
+    public void Search_CategoryKeyIsFilledFromTheLocalizationMap()
     {
         _scanner.Scan(_sourceRoot);
 
         var results = _query.Search("coffee");
 
-        Assert.Null(results[0].CategoryKey);
+        Assert.Equal("furniture", results[0].CategoryKey);
     }
 
     /// <summary>

@@ -59,6 +59,12 @@ public sealed class IndexQuery
             parameters.Add(new SqliteParameter("$category", filter.Category));
         }
 
+        if (filter?.CategoryKey is not null)
+        {
+            conditions.Add("f.category_key = $categoryKey");
+            parameters.Add(new SqliteParameter("$categoryKey", filter.CategoryKey));
+        }
+
         if (filter?.ProductVersion is not null)
         {
             conditions.Add("f.product_version = $version");
@@ -273,6 +279,12 @@ public sealed record SearchFilter
 {
     /// <summary>Gets the localized category to filter by, or <c>null</c> for all categories.</summary>
     public string? Category { get; init; }
+
+    /// <summary>
+    ///     Gets the language-independent category key to filter by (see <see cref="CategoryKeyMap" />),
+    ///     or <c>null</c> for all categories. Unifies localized variants like "Furniture" and "Mobiliario".
+    /// </summary>
+    public string? CategoryKey { get; init; }
 
     /// <summary>Gets the product version to filter by, or <c>null</c> for all versions.</summary>
     public string? ProductVersion { get; init; }

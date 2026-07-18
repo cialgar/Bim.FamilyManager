@@ -26,17 +26,38 @@ tarea de inserción con clic vía ExternalEvent + PostRequestForElementTypePlace
   - Búsqueda FTS (8 tipos, 10 reps c/u): **mediana 0.2-42 ms, máx 56 ms** (objetivo < 100 ms ✔).
   - Set sintético y DB borrados al terminar (verificado).
 
-## Próximos pasos inmediatos (Fase 3)
+## Fase 3 — estado de detalle
 
-1. Núcleo puro (esta sesión): `CategoryKeyMap` + relleno de `category_key` en el scanner
-   (con pase post-scan para filas viejas) + filtro por `category_key` en `IndexQuery` +
-   API de tags/favoritos en Index. Todo con tests.
-2. UI Revit (próximas sesiones): búsqueda global FTS en el panel, filtros combinables,
-   vista galería, aviso de versión al cargar (product-version del PartAtom vs documento),
-   e inserción con clic (doble clic = tipo por defecto; clic en tipo = ese tipo) vía
-   ExternalEvent → PostRequestForElementTypePlacement con validación de vista activa —
-   estudiar primero `FamilyDropHandler` (regla del proyecto).
-3. Pendientes heredados: hueco Navigator; .rfa en raíz sin listar; PRs a scotec-revit
+**Núcleo puro HECHO** (51/51 tests: 29 Index + 22 Rfa; desplegado en Revit 2026):
+
+- `CategoryKeyMap` (Index): 22 categorías estándar con localizaciones EN/ES verificadas →
+  clave estable (p. ej. `furniture`, `doors`, `structural-rebar-couplers`). Términos fuera
+  del mapa → key null (filtrables por texto). Case-insensitive, tolerante a espacios.
+- Scanner rellena `category_key` al extraer + **backfill post-scan**: si el mapa crece, un
+  re-scan sin cambios restaura/actualiza las claves de filas viejas sin releer archivos
+  (testeado). Corre dentro de la transacción del scan.
+- `SearchFilter.CategoryKey` en `IndexQuery`: filtro que unifica "Furniture"↔"Mobiliario".
+- `IndexEditor` (Index): favoritos (set/get + filtro `FavoritesOnly`) y tags (add/remove/
+  listar por familia/listar todos + filtro `Tag`; tags huérfanos se podan; anotaciones de
+  familias borradas del disco caen por cascade). Persisten entre instancias (testeado).
+
+## Próximos pasos inmediatos (Fase 3, UI Revit)
+
+1. Búsqueda global FTS en el panel: reemplazar `FilterFamilies` (que filtra el árbol
+   cargado) por `IndexQuery.Search` agregando todas las fuentes indexadas; resultados con
+   miniaturas vía `FamilyInfoCache`.
+2. Filtros combinables en la UI (categoría unificada por `category_key` con
+   `GetCategories`, versión, tags con `GetAllTags`, favoritos) + menú contextual de
+   tags/favoritos sobre la tarjeta (`IndexEditor`).
+3. Vista galería (grid de miniaturas), aprovechando Ui.Standard/Ui.Modern.
+4. Aviso de versión al cargar: product-version del PartAtom/índice vs versión del documento
+   activo (mayor → bloquear; menor → avisar upgrade). Punto de entrada: flujo de carga de
+   `FamilyManager`/`FamilyDropHandler`.
+5. Inserción con clic: doble clic = tipo por defecto; clic en tipo = ese tipo; vía
+   `ExternalEvent` → `PostRequestForElementTypePlacement` con validación de que la vista
+   activa admite la categoría (aviso claro; nunca fallo silencioso). **Estudiar primero
+   `FamilyDropHandler`** (regla del proyecto).
+6. Pendientes heredados: hueco Navigator; .rfa en raíz sin listar; PRs a scotec-revit
    (Category, InvariantCulture en `updated`, stream del loader sin disponer) + micro-PR
    upstream Bim.FamilyManager (fuente fantasma X:\ en DefaultFamilySources.json).
 

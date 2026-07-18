@@ -104,6 +104,7 @@ public sealed class IndexScanner
         }
 
         var removed = RemoveMissingFamilies(connection, sourceId, seen, known);
+        BackfillCategoryKeys(connection);
         UpdateLastScan(connection, sourceId);
 
         transaction.Commit();
@@ -208,8 +209,8 @@ public sealed class IndexScanner
             command.CommandText =
                 """
                 INSERT INTO families (source_id, path, name, folder, size, mtime_utc_ticks,
-                                      product_version, category, omniclass, updated_utc, indexed_at_utc)
-                VALUES ($source, $path, $name, $folder, $size, $mtime, $version, $category, $omniclass, $updated, $indexedAt)
+                                      product_version, category, category_key, omniclass, updated_utc, indexed_at_utc)
+                VALUES ($source, $path, $name, $folder, $size, $mtime, $version, $category, $categoryKey, $omniclass, $updated, $indexedAt)
                 ON CONFLICT(path) DO UPDATE SET
                     source_id = excluded.source_id,
                     name = excluded.name,
@@ -218,6 +219,7 @@ public sealed class IndexScanner
                     mtime_utc_ticks = excluded.mtime_utc_ticks,
                     product_version = excluded.product_version,
                     category = excluded.category,
+                    category_key = excluded.category_key,
                     omniclass = excluded.omniclass,
                     updated_utc = excluded.updated_utc,
                     indexed_at_utc = excluded.indexed_at_utc
@@ -230,7 +232,9 @@ public sealed class IndexScanner
             command.Parameters.AddWithValue("$size", file.Length);
             command.Parameters.AddWithValue("$mtime", file.LastWriteTimeUtc.Ticks);
             command.Parameters.AddWithValue("$version", (object?)info?.ProductVersion ?? DBNull.Value);
+            CategoryKeyMap.TryGetKey(info?.Category, out var categoryKey);
             command.Parameters.AddWithValue("$category", (object?)info?.Category ?? DBNull.Value);
+            command.Parameters.AddWithValue("$categoryKey", (object?)categoryKey ?? DBNull.Value);
             command.Parameters.AddWithValue("$omniclass", (object?)info?.OmniClassNumber ?? DBNull.Value);
             command.Parameters.AddWithValue("$updated", (object?)info?.Updated?.ToString("O", CultureInfo.InvariantCulture) ?? DBNull.Value);
             command.Parameters.AddWithValue("$indexedAt", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
@@ -304,6 +308,45 @@ public sealed class IndexScanner
         }
 
         return removed;
+    }
+
+    /// <summary>
+    ///     Fills <c>category_key</c> for rows whose localized category is known to the map but whose key
+    ///     is still null.
+    /// </summary>
+    /// <param name="connection">The open index connection (inside the scan transaction).</param>
+    /// <remarks>
+    ///     New and changed rows get their key at extraction time; this pass covers rows indexed before
+    ///     the <see cref="CategoryKeyMap" /> learned their category, so growing the map automatically
+    ///     upgrades existing indexes on the next scan without re-reading any family file.
+    /// </remarks>
+    private static void BackfillCategoryKeys(SqliteConnection connection)
+    {
+        var pending = new List<string>();
+        using (var select = connection.CreateCommand())
+        {
+            select.CommandText =
+                "SELECT DISTINCT category FROM families WHERE category IS NOT NULL AND category_key IS NULL;";
+            using var reader = select.ExecuteReader();
+            while (reader.Read())
+            {
+                pending.Add(reader.GetString(0));
+            }
+        }
+
+        foreach (var term in pending)
+        {
+            if (!CategoryKeyMap.TryGetKey(term, out var key))
+            {
+                continue;
+            }
+
+            using var update = connection.CreateCommand();
+            update.CommandText = "UPDATE families SET category_key = $key WHERE category = $term AND category_key IS NULL;";
+            update.Parameters.AddWithValue("$key", key!);
+            update.Parameters.AddWithValue("$term", term);
+            update.ExecuteNonQuery();
+        }
     }
 
     private static void UpdateLastScan(SqliteConnection connection, long sourceId)
