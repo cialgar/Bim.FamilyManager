@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<IsPackable>false</IsPackable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.NET.Test.Sdk" />
+		<PackageReference Include="xunit" />
+		<PackageReference Include="xunit.runner.visualstudio" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Bim.FamilyManager.Rfa\Bim.FamilyManager.Rfa.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>
+
+</Project>

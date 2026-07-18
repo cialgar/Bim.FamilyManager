@@ -11,6 +11,12 @@
   <Project Path="Bim.FamilyManager.Base/Bim.FamilyManager.Base.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="Bim.FamilyManager.Rfa.Tests/Bim.FamilyManager.Rfa.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="Bim.FamilyManager.Rfa/Bim.FamilyManager.Rfa.csproj">
+    <Platform Project="x64" />
+  </Project>
   <Project Path="Bim.FamilyManager.Source.AzureStorage/Bim.FamilyManager.Source.AzureStorage.csproj">
     <Platform Project="x64" />
   </Project>
