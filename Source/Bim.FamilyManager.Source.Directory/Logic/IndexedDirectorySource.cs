@@ -27,7 +27,7 @@ namespace Bim.FamilyManager.Source.Directory.Logic;
 ///     — the panel's refresh button therefore doubles as the re-index command. When a scan detects
 ///     changes, the source reloads itself so the UI reflects the new state.
 /// </remarks>
-public sealed class IndexedDirectorySource : FamilySource<IndexedDirectorySourceOptions>
+public sealed class IndexedDirectorySource : FamilySource<IndexedDirectorySourceOptions>, ISearchableFamilySource
 {
     /// <summary>
     ///     A factory delegate for creating instances of <see cref="IndexedDirectorySource" />.
@@ -222,29 +222,85 @@ public sealed class IndexedDirectorySource : FamilySource<IndexedDirectorySource
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // A single unreadable family file must not abort the enumeration (see DirectorySource).
-            IRevitFamily? family;
-            try
-            {
-                if (!FamilyManager.TryGetRevitFamily(record.Name, out family))
-                {
-                    var familyFile = record.Path;
-                    family = CreateRevitFamily(record.Name, CreateFamilyInfo(familyFile),
-                        (revitFamily, stream) => SaveFamily(revitFamily, stream, familyFile));
-
-                    ApplyOrCaptureCachedInfo(family, familyFile);
-                }
-            }
-            catch (Exception e)
-            {
-                family = null;
-                _logger.LogError(e, "Failed to create the family entry. Family file: {FamilyFile}", record.Path);
-            }
-
+            var family = MaterializeFamily(record);
             if (family is not null)
             {
                 yield return family;
             }
+        }
+    }
+
+    /// <summary>
+    ///     Searches this source for families matching the specified text and filters.
+    /// </summary>
+    /// <param name="searchPattern">The search text, or <c>null</c> to match by filters only.</param>
+    /// <param name="options">The filters to apply, or <c>null</c> for none.</param>
+    /// <param name="cancellationToken">A cancellation token to observe while searching.</param>
+    /// <returns>An asynchronous stream of matching families of this source.</returns>
+    /// <remarks>
+    ///     The query runs against the shared index database, so results are restricted to family files
+    ///     located under this source's root path.
+    /// </remarks>
+#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
+    public async IAsyncEnumerable<IRevitFamily> SearchFamiliesAsync(string? searchPattern, FamilySearchOptions? options,
+#pragma warning restore CS1998
+                                                                    [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var filter = new SearchFilter
+        {
+            Category = options?.Category,
+            CategoryKey = options?.CategoryKey,
+            ProductVersion = options?.ProductVersion,
+            Tag = options?.Tag,
+            FavoritesOnly = options?.FavoritesOnly ?? false
+        };
+
+        var rootPrefix = Path.GetFullPath(_rootPath).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+
+        foreach (var record in _query.Search(searchPattern, filter, limit: 500))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!Path.GetFullPath(record.Path).StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var family = MaterializeFamily(record);
+            if (family is not null)
+            {
+                yield return family;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Materializes an <see cref="IRevitFamily" /> for an index record, reusing already registered
+    ///     families and applying the persistent display cache.
+    /// </summary>
+    /// <param name="record">The index record.</param>
+    /// <returns>The family, or <c>null</c> when the entry could not be created.</returns>
+    /// <remarks>A single unreadable family file must not abort an enumeration (see <see cref="DirectorySource" />).</remarks>
+    private IRevitFamily? MaterializeFamily(FamilyRecord record)
+    {
+        try
+        {
+            if (FamilyManager.TryGetRevitFamily(record.Name, out var family))
+            {
+                return family;
+            }
+
+            var familyFile = record.Path;
+            family = CreateRevitFamily(record.Name, CreateFamilyInfo(familyFile),
+                (revitFamily, stream) => SaveFamily(revitFamily, stream, familyFile));
+
+            ApplyOrCaptureCachedInfo(family, familyFile);
+            return family;
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to create the family entry. Family file: {FamilyFile}", record.Path);
+            return null;
         }
     }
 

@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Windows.Input;
@@ -7,6 +8,7 @@ using System.Windows.Media.Imaging;
 using Bim.FamilyManager.Abstractions;
 using Bim.FamilyManager.Abstractions.ViewModels;
 using Bim.FamilyManager.Base.Options;
+using Bim.FamilyManager.Index;
 using Bim.FamilyManager.Ui.Views.Settings;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Options;
@@ -28,15 +30,25 @@ namespace Bim.FamilyManager.Ui.FamilyExplorer.ViewModels;
 public class FamilyManagerViewModel : ViewModel, IFamilyManagerViewModel
 {
     private readonly FamilyViewModel.Factory _familyFactory;
+    private readonly FamilyIndex _familyIndex;
     private readonly IFamilyManager _familyManager;
+    private readonly IndexQuery _indexQuery;
     private readonly string? _logo;
     private readonly AsyncRelayCommand _reloadCommand;
     private readonly FamilySourceViewModel.Factory _sourceFactory;
+    private IReadOnlyList<CategoryFilterOption>? _categoryFilters;
     private IEnumerable<IFamilySourceViewModel>? _familySources;
+    private bool _favoritesOnly;
     private bool _isActiveSearch;
+    private bool _isGalleryView;
     private string _searchPattern = string.Empty;
     private IList<IFamilyViewModel>? _searchResult;
+    private CategoryFilterOption? _selectedCategoryFilter;
     private IFamilySourceViewModel? _selectedFamilySource;
+    private TagFilterOption? _selectedTagFilter;
+    private VersionFilterOption? _selectedVersionFilter;
+    private IReadOnlyList<TagFilterOption>? _tagFilters;
+    private IReadOnlyList<VersionFilterOption>? _versionFilters;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="FamilyManagerViewModel" /> class.
@@ -62,6 +74,7 @@ public class FamilyManagerViewModel : ViewModel, IFamilyManagerViewModel
                                   FamilySourceViewModel.Factory sourceFactory,
                                   FamilyViewModel.Factory familyFactory,
                                   IOptions<FamilyManagerOptions> options,
+                                  FamilyIndex familyIndex,
                                   SettingsManagerWindow.Factory settingsManagerWindowFactory
     )
     {
@@ -69,6 +82,8 @@ public class FamilyManagerViewModel : ViewModel, IFamilyManagerViewModel
         _familyManager = familyManager;
         _sourceFactory = sourceFactory;
         _familyFactory = familyFactory;
+        _familyIndex = familyIndex;
+        _indexQuery = new IndexQuery(familyIndex);
 
         _logo = options.Value.Logo;
         StaticWeakEventManager.AddWeakHandler(_familyManager, nameof(_familyManager.Reloaded), OnReloaded);
@@ -154,7 +169,97 @@ public class FamilyManagerViewModel : ViewModel, IFamilyManagerViewModel
     public bool IsActiveSearch
     {
         get => _isActiveSearch;
-        set => SetProperty(ref _isActiveSearch, value);
+        set
+        {
+            SetProperty(ref _isActiveSearch, value);
+            OnPropertyChanged(nameof(ShowTree));
+            OnPropertyChanged(nameof(ShowGallery));
+        }
+    }
+
+    /// <summary>
+    ///     Gets or sets a value indicating whether the gallery view (thumbnail grid of the selected
+    ///     folder, including subfolders) is shown instead of the folder tree.
+    /// </summary>
+    public bool IsGalleryView
+    {
+        get => _isGalleryView;
+        set
+        {
+            SetProperty(ref _isGalleryView, value);
+            OnPropertyChanged(nameof(ShowTree));
+            OnPropertyChanged(nameof(ShowGallery));
+        }
+    }
+
+    /// <summary>Gets a value indicating whether the folder tree is visible.</summary>
+    public bool ShowTree => !IsActiveSearch && !IsGalleryView;
+
+    /// <summary>Gets a value indicating whether the gallery grid is visible.</summary>
+    public bool ShowGallery => !IsActiveSearch && IsGalleryView;
+
+    /// <summary>
+    ///     Gets the category filter options: one entry per language-independent category key present in
+    ///     the index (displayed in the UI language), plus unmapped localized categories as-is.
+    /// </summary>
+    public IReadOnlyList<CategoryFilterOption> CategoryFilters => _categoryFilters ??= BuildCategoryFilters();
+
+    /// <summary>Gets the product version filter options.</summary>
+    public IReadOnlyList<VersionFilterOption> VersionFilters =>
+        _versionFilters ??= new[] { new VersionFilterOption("All versions", null) }
+                            .Concat(SafeIndex(() => _indexQuery.GetProductVersions(), [])
+                                        .Select(version => new VersionFilterOption(version, version)))
+                            .ToList();
+
+    /// <summary>Gets the tag filter options.</summary>
+    public IReadOnlyList<TagFilterOption> TagFilters =>
+        _tagFilters ??= new[] { new TagFilterOption("All tags", null) }
+                        .Concat(SafeIndex(() => new IndexEditor(_familyIndex).GetAllTags(), [])
+                                    .Select(tag => new TagFilterOption(tag, tag)))
+                        .ToList();
+
+    /// <summary>Gets or sets the selected category filter.</summary>
+    public CategoryFilterOption? SelectedCategoryFilter
+    {
+        get => _selectedCategoryFilter ??= CategoryFilters.FirstOrDefault();
+        set
+        {
+            SetProperty(ref _selectedCategoryFilter, value);
+            FilterFamilies(SearchPattern);
+        }
+    }
+
+    /// <summary>Gets or sets the selected product version filter.</summary>
+    public VersionFilterOption? SelectedVersionFilter
+    {
+        get => _selectedVersionFilter ??= VersionFilters.FirstOrDefault();
+        set
+        {
+            SetProperty(ref _selectedVersionFilter, value);
+            FilterFamilies(SearchPattern);
+        }
+    }
+
+    /// <summary>Gets or sets the selected tag filter.</summary>
+    public TagFilterOption? SelectedTagFilter
+    {
+        get => _selectedTagFilter ??= TagFilters.FirstOrDefault();
+        set
+        {
+            SetProperty(ref _selectedTagFilter, value);
+            FilterFamilies(SearchPattern);
+        }
+    }
+
+    /// <summary>Gets or sets a value indicating whether only favorite families are shown.</summary>
+    public bool FavoritesOnly
+    {
+        get => _favoritesOnly;
+        set
+        {
+            SetProperty(ref _favoritesOnly, value);
+            FilterFamilies(SearchPattern);
+        }
     }
 
     /// <summary>
@@ -295,6 +400,14 @@ public class FamilyManagerViewModel : ViewModel, IFamilyManagerViewModel
 
         _familySources = null;
         OnPropertyChanged(nameof(FamilySources));
+
+        // The index content may have changed: rebuild the filter option lists.
+        _categoryFilters = null;
+        _versionFilters = null;
+        _tagFilters = null;
+        OnPropertyChanged(nameof(CategoryFilters));
+        OnPropertyChanged(nameof(VersionFilters));
+        OnPropertyChanged(nameof(TagFilters));
     }
 
     /// <summary>
@@ -311,25 +424,53 @@ public class FamilyManagerViewModel : ViewModel, IFamilyManagerViewModel
     /// </remarks>
     private void FilterFamilies(string searchPattern)
     {
+        var options = BuildSearchOptions();
+        var hasText = !string.IsNullOrWhiteSpace(searchPattern) && searchPattern.Trim().Length >= 3;
+        var searchableSources = _familyManager.FamilySources.OfType<ISearchableFamilySource>().ToList();
+
+        if ((hasText || options is not null) && searchableSources.Count > 0)
+        {
+            // Global search: aggregated over all indexed sources, independent of the selected folder.
+            IsActiveSearch = true;
+            var searchResult = Task.Run(async () =>
+            {
+                var families = new List<IRevitFamily>();
+                foreach (var source in searchableSources)
+                {
+                    await foreach (var family in source.SearchFamiliesAsync(hasText ? searchPattern : null, options, CancellationToken.None))
+                    {
+                        families.Add(family);
+                    }
+                }
+
+                // The family manager caches families by name, so the same name found in several
+                // sources yields the same instance — keep one entry per name.
+                return families.GroupBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+                               .Select(group => group.First())
+                               .OrderBy(f => f.Name)
+                               .ToList();
+            }).ConfigureAwait(true).GetAwaiter().GetResult();
+
+            SearchResult = searchResult.Select(family => (IFamilyViewModel)_familyFactory(family))
+                                       .ToList();
+            return;
+        }
+
+        // Fallback for setups without indexed sources: folder-scoped text search (upstream behavior).
         var folder = SelectedFamilySource?.SelectedFolder;
-        if (!string.IsNullOrWhiteSpace(searchPattern) && folder is not null)
+        if (hasText && folder is not null)
         {
             IsActiveSearch = true;
             var searchResult = Task.Run(async () =>
             {
-                if (_searchPattern.Length >= 3)
+                var families = new List<IRevitFamily>();
+                await foreach (var family in _familyManager.SearchRevitFamiliesAsync(folder.Folder, searchPattern, CancellationToken.None))
                 {
-                    var families = new List<IRevitFamily>();
-                    await foreach (var family in _familyManager.SearchRevitFamiliesAsync(folder.Folder, searchPattern, CancellationToken.None))
-                    {
-                        families.Add(family);
-                    }
-
-                    return families.OrderBy(f => f.Name)
-                                   .ToList();
+                    families.Add(family);
                 }
 
-                return [];
+                return families.OrderBy(f => f.Name)
+                               .ToList();
             }).ConfigureAwait(true).GetAwaiter().GetResult();
 
             SearchResult = searchResult.Select(family => (IFamilyViewModel)_familyFactory(family))
@@ -341,4 +482,90 @@ public class FamilyManagerViewModel : ViewModel, IFamilyManagerViewModel
             IsActiveSearch = false;
         }
     }
+
+    /// <summary>
+    ///     Builds the search options from the current filter selections, or <c>null</c> when no filter is set.
+    /// </summary>
+    private FamilySearchOptions? BuildSearchOptions()
+    {
+        var options = new FamilySearchOptions
+        {
+            CategoryKey = SelectedCategoryFilter?.CategoryKey,
+            Category = SelectedCategoryFilter?.CategoryText,
+            ProductVersion = SelectedVersionFilter?.Version,
+            Tag = SelectedTagFilter?.Tag,
+            FavoritesOnly = FavoritesOnly
+        };
+
+        return options.HasAnyFilter ? options : null;
+    }
+
+    /// <summary>
+    ///     Builds the category filter list: mapped categories collapse their localized variants into one
+    ///     entry displayed in the UI language; unmapped categories appear with their localized text.
+    /// </summary>
+    private IReadOnlyList<CategoryFilterOption> BuildCategoryFilters()
+    {
+        var language = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+        var options = new List<CategoryFilterOption> { new("All categories", null, null) };
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var entries = new List<CategoryFilterOption>();
+
+        foreach (var term in SafeIndex(() => _indexQuery.GetCategories(), []))
+        {
+            if (CategoryKeyMap.TryGetKey(term, out var key))
+            {
+                if (seenKeys.Add(key!))
+                {
+                    CategoryKeyMap.TryGetDisplayName(key!, language, out var displayName);
+                    entries.Add(new CategoryFilterOption(displayName ?? term, key, null));
+                }
+            }
+            else
+            {
+                entries.Add(new CategoryFilterOption(term, null, term));
+            }
+        }
+
+        options.AddRange(entries.OrderBy(option => option.DisplayName, StringComparer.CurrentCultureIgnoreCase));
+        return options;
+    }
+
+    /// <summary>
+    ///     Runs an index query, falling back to a default when the index is unavailable.
+    /// </summary>
+    private static T SafeIndex<T>(Func<T> query, T fallback)
+    {
+        try
+        {
+            return query();
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
 }
+
+/// <summary>
+///     Represents a category filter entry: either a language-independent key (with localized display
+///     name), an unmapped localized category, or the "all" entry when both are <c>null</c>.
+/// </summary>
+/// <param name="DisplayName">The text shown in the filter list.</param>
+/// <param name="CategoryKey">The stable category key, or <c>null</c>.</param>
+/// <param name="CategoryText">The localized category text for unmapped categories, or <c>null</c>.</param>
+public sealed record CategoryFilterOption(string DisplayName, string? CategoryKey, string? CategoryText);
+
+/// <summary>
+///     Represents a product version filter entry; <paramref name="Version" /> is <c>null</c> for the "all" entry.
+/// </summary>
+/// <param name="DisplayName">The text shown in the filter list.</param>
+/// <param name="Version">The product version, or <c>null</c>.</param>
+public sealed record VersionFilterOption(string DisplayName, string? Version);
+
+/// <summary>
+///     Represents a tag filter entry; <paramref name="Tag" /> is <c>null</c> for the "all" entry.
+/// </summary>
+/// <param name="DisplayName">The text shown in the filter list.</param>
+/// <param name="Tag">The tag name, or <c>null</c>.</param>
+public sealed record TagFilterOption(string DisplayName, string? Tag);

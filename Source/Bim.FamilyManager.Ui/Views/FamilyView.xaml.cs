@@ -52,4 +52,23 @@ public partial class FamilyView : UserControl
             UIApplication.DoDragDrop(familyViewModel, familyViewModel.DropHandler);
         }
     }
+
+    /// <summary>
+    ///     Opens the types menu of the family on a left click, so a specific type can be placed.
+    /// </summary>
+    /// <param name="sender">The button showing the types icon.</param>
+    /// <param name="e">The event data.</param>
+    /// <remarks>
+    ///     Context menus only open on right click by default; the types list must also be reachable
+    ///     with a normal click on the icon.
+    /// </remarks>
+    private void OnOpenTypesMenu(object sender, System.Windows.RoutedEventArgs e)
+    {
+        if (sender is Control { ContextMenu: not null } control)
+        {
+            control.ContextMenu.PlacementTarget = control;
+            control.ContextMenu.DataContext = DataContext;
+            control.ContextMenu.IsOpen = true;
+        }
+    }
 }

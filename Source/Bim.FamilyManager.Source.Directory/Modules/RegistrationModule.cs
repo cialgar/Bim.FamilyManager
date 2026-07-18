@@ -77,6 +77,10 @@ public class RegistrationModule : Module
                .AsSelf()
                .SingleInstance();
 
+        builder.RegisterType<Logic.IndexFamilyAnnotations>()
+               .As<Ui.IFamilyAnnotations>()
+               .SingleInstance();
+
         builder.RegisterType<Logic.IndexedDirectorySource>()
                .InstancePerDependency();
 

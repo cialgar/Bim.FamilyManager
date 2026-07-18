@@ -51,6 +51,7 @@ public sealed class FamilyManager : IFamilyManager, IDisposable
     private List<IFamilySourceOptions> _familySourceOptions;
     private IEnumerable<IFamilySource>? _familySources;
     private HashSet<string> _loadedFamilies = [];
+    private readonly HashSet<string> _upgradeWarnings = new(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource _tokenSource = new CancellationTokenSource();
 
     /// <summary>
@@ -496,6 +497,11 @@ public sealed class FamilyManager : IFamilyManager, IDisposable
     public bool TryLoadFamily(IRevitFamily revitFamily, Document document, [NotNullWhen(true)] out Family? family)
     {
         family = null;
+        if (!CheckFamilyVersion(revitFamily, document))
+        {
+            return false;
+        }
+
         var tempFilePath = CreateFamilyLocalFile(revitFamily.Family, revitFamily.Name, document.Application);
 
         // Loading the family does not work as expected.
@@ -572,6 +578,12 @@ public sealed class FamilyManager : IFamilyManager, IDisposable
     public bool TryLoadFamilySymbol(IRevitFamilySymbol revitFamilySymbol, Document document, [NotNullWhen(true)] out FamilySymbol? familySymbol)
     {
         var revitFamily = revitFamilySymbol.Family;
+        familySymbol = null;
+        if (!CheckFamilyVersion(revitFamily, document))
+        {
+            return false;
+        }
+
         var tempFilePath = CreateFamilyLocalFile(revitFamily.Family, revitFamily.Name, document.Application);
 
         try
@@ -589,6 +601,50 @@ public sealed class FamilyManager : IFamilyManager, IDisposable
             // Clean up the temporary file
             RemoveFamilyLocalFile(tempFilePath);
         }
+    }
+
+    /// <summary>
+    ///     Validates the family's product version against the version of the target document.
+    /// </summary>
+    /// <param name="revitFamily">The family about to be loaded.</param>
+    /// <param name="document">The target document.</param>
+    /// <returns><c>true</c> if loading may proceed; <c>false</c> when the family must not be loaded.</returns>
+    /// <remarks>
+    ///     The product version comes from the PartAtom stream of the family file (served by the index
+    ///     or extracted on initialization) and is authoritative — file names can lie about the version.
+    ///     A family saved with a NEWER Revit version than the document cannot be loaded; Revit would
+    ///     fail with a cryptic error, so the load is blocked here with a clear message. A family saved
+    ///     with an OLDER version loads fine but is upgraded by Revit; the user is warned once per
+    ///     family and session. Families whose version is unknown are not restricted.
+    /// </remarks>
+    private bool CheckFamilyVersion(IRevitFamily revitFamily, Document document)
+    {
+        if (!int.TryParse(revitFamily.ProductVersion, out var familyVersion) ||
+            !int.TryParse(document.Application.VersionNumber, out var documentVersion))
+        {
+            return true;
+        }
+
+        if (familyVersion > documentVersion)
+        {
+            _logger.LogWarning(
+                "Blocked loading family '{Family}': saved with Revit {FamilyVersion}, document is Revit {DocumentVersion}.",
+                revitFamily.Name, familyVersion, documentVersion);
+
+            TaskDialog.Show("Family Manager",
+                $"The family '{revitFamily.Name}' was saved with Revit {familyVersion} and cannot be loaded " +
+                $"into this Revit {documentVersion} document.\n\nUse a version of the family saved with Revit {documentVersion} or older.");
+            return false;
+        }
+
+        if (familyVersion < documentVersion && _upgradeWarnings.Add(revitFamily.Name))
+        {
+            TaskDialog.Show("Family Manager",
+                $"The family '{revitFamily.Name}' was saved with Revit {familyVersion}. " +
+                $"Revit will upgrade it to version {documentVersion} while loading; the file in the library is not modified.");
+        }
+
+        return true;
     }
 
     public static void TemporarilyHideAllFamilyConnectors(Document doc, View view)

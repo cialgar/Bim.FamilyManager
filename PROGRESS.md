@@ -4,12 +4,39 @@
 
 ## Estado actual
 
-**Fases 0, 1 y 2 CERRADAS** (2026-07-18). Cierre de Fase 2 con smoke test del usuario:
-fuente indexada creada, **191 familias indexadas en 1.7 s, re-scan de 36 ms con 0 fallos**,
-navegación con miniaturas fluida y drag & drop colocando correctamente.
-**Fase activa: Fase 3** — búsqueda y UX (plan actualizado en PLAN.md, incluye la nueva
-tarea de inserción con clic vía ExternalEvent + PostRequestForElementTypePlacement).
-**Última sesión:** 2026-07-18 — cierre Fase 2, arranque Fase 3.
+**Fases 0, 1 y 2 CERRADAS** (2026-07-18).
+**Fase activa: Fase 3 — IMPLEMENTACIÓN COMPLETA (núcleo + UI), desplegada en Revit 2026;
+pendiente el smoke test del usuario** (guion en el resumen de la sesión; criterios en
+PLAN.md § Fase 3). 51/51 tests verdes.
+**Última sesión:** 2026-07-18 — capa UI completa de Fase 3.
+
+## Fase 3 — capa UI (sesión 2026-07-18, noche)
+
+- **Búsqueda global**: `ISearchableFamilySource` (interfaz ADITIVA en Abstractions, con
+  `FamilySearchOptions`); `IndexedDirectorySource` la implementa (query global limitada a su
+  raíz, materialización compartida con la navegación). `FilterFamilies` del Explorer agrega
+  resultados de TODAS las fuentes searchables (dedupe por nombre, la caché del manager
+  garantiza misma instancia); fallback al comportamiento por-carpeta del upstream si no hay
+  fuentes indexadas. Filtros activos sin texto también disparan búsqueda.
+- **Filtros combinables** (fila bajo la caja de búsqueda): categoría unificada por
+  `category_key` mostrada en el idioma de la UI (`CategoryKeyMap.TryGetDisplayName`; las no
+  mapeadas aparecen con su texto tal cual), versión de Revit (`GetProductVersions`), tag
+  (`GetAllTags`) y toggle ★ solo-favoritos. Listas se refrescan en Reload.
+- **Menú contextual en la tarjeta** (clic derecho): Favorite (checkable), Tags (checkables)
+  y "Add tag..." (prompt). Servicio `IFamilyAnnotations` (Ui) implementado sobre el índice
+  (`IndexFamilyAnnotations` en Source.Directory, resolución por nombre — mismo criterio de
+  identidad que la caché del manager). Estrella dorada en la tarjeta si es favorito.
+- **Vista galería**: toggle ⊞ — grid de miniaturas con TODAS las familias de la carpeta
+  seleccionada (recursivo, `SelectedFolder.Families`), además del árbol.
+- **Aviso de versión al cargar** (`FamilyManager.CheckFamilyVersion`, en TryLoadFamily y
+  TryLoadFamilySymbol — cubre botón cargar, drag & drop e inserción con clic): familia más
+  NUEVA que el documento → bloqueo con TaskDialog claro; más VIEJA → TaskDialog informativo
+  una vez por familia y sesión (Revit la actualizará; el archivo no se toca).
+- **Inserción con clic**: doble clic en la tarjeta coloca el tipo por defecto (primero);
+  el ícono de lista ahora abre un MENÚ de tipos y clic en uno lo coloca (antes era tooltip).
+  Flujo idéntico a `FamilyDropHandler`: `TryLoadFamilySymbol` en transacción →
+  `CanPlaceElementType` (validación de vista activa, aviso claro si no admite; la familia
+  queda cargada) → `PostRequestForElementTypePlacement`; todo vía `RevitTask`.
 
 ## Métricas de estrés (2026-07-18, harness fuera de Revit)
 

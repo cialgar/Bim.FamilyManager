@@ -14,7 +14,7 @@ namespace Bim.FamilyManager.Index;
 /// </remarks>
 public static class CategoryKeyMap
 {
-    private static readonly Dictionary<string, string> TermToKey = BuildMap(new (string Key, string[] Terms)[]
+    private static readonly (string Key, string[] Terms)[] Entries =
     {
         ("casework", ["Casework", "Muebles de obra"]),
         ("columns", ["Columns", "Columnas"]),
@@ -38,7 +38,12 @@ public static class CategoryKeyMap
         ("structural-framing", ["Structural Framing", "Armazón estructural"]),
         ("structural-rebar-couplers", ["Structural Rebar Couplers", "Acopladores de armadura estructural"]),
         ("windows", ["Windows", "Ventanas"])
-    });
+    };
+
+    private static readonly Dictionary<string, string> TermToKey = BuildMap(Entries);
+
+    private static readonly Dictionary<string, string[]> KeyToNames =
+        Entries.ToDictionary(entry => entry.Key, entry => entry.Terms, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     ///     Attempts to resolve the language-independent key for a localized category term.
@@ -55,6 +60,26 @@ public static class CategoryKeyMap
         }
 
         return TermToKey.TryGetValue(localizedTerm.Trim(), out key!) && key is not null;
+    }
+
+    /// <summary>
+    ///     Attempts to resolve the display name of a mapped category in the requested language.
+    /// </summary>
+    /// <param name="key">The stable category key.</param>
+    /// <param name="twoLetterLanguage">The ISO two-letter language code ("es" for Spanish; anything else yields English).</param>
+    /// <param name="displayName">The localized display name, or <c>null</c> when the method returns <c>false</c>.</param>
+    /// <returns><c>true</c> if the key is known; otherwise <c>false</c>.</returns>
+    public static bool TryGetDisplayName(string key, string twoLetterLanguage, out string? displayName)
+    {
+        displayName = null;
+        if (!KeyToNames.TryGetValue(key, out var names))
+        {
+            return false;
+        }
+
+        var index = string.Equals(twoLetterLanguage, "es", StringComparison.OrdinalIgnoreCase) && names.Length > 1 ? 1 : 0;
+        displayName = names[index];
+        return true;
     }
 
     private static Dictionary<string, string> BuildMap((string Key, string[] Terms)[] entries)

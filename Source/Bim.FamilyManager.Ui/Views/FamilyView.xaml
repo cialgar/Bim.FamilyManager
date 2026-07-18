@@ -58,6 +58,23 @@
         </Grid.RowDefinitions>
         <Border Margin="10" ToolTip="{Binding Path=Name}" BorderThickness="1" BorderBrush="DarkGray"
                 CornerRadius="4" x:Name="Border1" Padding="1" Background="{StaticResource PrimaryBackgroundBrush}">
+            <Border.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="Favorite" IsCheckable="True" IsChecked="{Binding IsFavorite}" />
+                    <MenuItem Header="Tags" ItemsSource="{Binding TagOptions}">
+                        <MenuItem.ItemContainerStyle>
+                            <Style TargetType="MenuItem">
+                                <Setter Property="Header" Value="{Binding Name}" />
+                                <Setter Property="IsChecked" Value="{Binding IsAssigned, Mode=OneWay}" />
+                                <Setter Property="Command"
+                                        Value="{Binding DataContext.ToggleTagCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <Setter Property="CommandParameter" Value="{Binding}" />
+                            </Style>
+                        </MenuItem.ItemContainerStyle>
+                    </MenuItem>
+                    <MenuItem Header="Add tag..." Command="{Binding AddTagCommand}" />
+                </ContextMenu>
+            </Border.ContextMenu>
             <Border.Clip>
                 <RectangleGeometry RadiusX="4" RadiusY="4">
                     <RectangleGeometry.Rect>
@@ -73,7 +90,11 @@
                     <RowDefinition Height="auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <Grid Grid.Row="0" Name="DisplayArea" Cursor="Hand" Background="White">
+                <Grid Grid.Row="0" Name="DisplayArea" Cursor="Hand" Background="White"
+                      ToolTip="Double-click to place the default type">
+                    <Grid.InputBindings>
+                        <MouseBinding Gesture="LeftDoubleClick" Command="{Binding PlaceFamilyCommand}" />
+                    </Grid.InputBindings>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -118,27 +139,28 @@
                                                Foreground="{StaticResource ButtonUncheckedBrush}"
                                                ToolTip="{x:Static resources:StringResources.Family_Icon_NotImported}"
                                                Visibility="{Binding IsLoadedInDocument, Converter={StaticResource FalseToVisibleConverterKey}}" />
-                        <material:MaterialIcon Kind="{StaticResource IconListBulleted}"
-                                               Foreground="{StaticResource ButtonListBrush}" Margin="2,0,0,0">
-                            <material:MaterialIcon.ToolTip>
-                                <ToolTip Padding="0">
-                                    <StackPanel Orientation="Vertical"
-                                                Background="{StaticResource SecondaryBackgroundBrush}">
-                                        <TextBlock Style="{StaticResource HeaderStyle}"
-                                                   Text="{Binding Path=Name}"
-                                                   Margin="3" />
-                                        <Border BorderThickness="0,0,0,1"
-                                                BorderBrush="{StaticResource PrimaryBrush}" />
-                                        <ListBox BorderThickness="0"
-                                                 Background="{StaticResource BackgroundBrush}"
-                                                 ItemContainerStyle="{StaticResource SymbolListBoxItemStyle}"
-                                                 ItemTemplate="{StaticResource ListBoxItemTemplate}"
-                                                 ItemsSource="{Binding Symbols}" />
-
-                                    </StackPanel>
-                                </ToolTip>
-                            </material:MaterialIcon.ToolTip>
-                        </material:MaterialIcon>
+                        <controls:MaterialIconButton Kind="{StaticResource IconListBulleted}"
+                                                     Foreground="{StaticResource ButtonListBrush}" Margin="2,0,0,0"
+                                                     Padding="0"
+                                                     ToolTip="Show types — click a type to place it"
+                                                     Click="OnOpenTypesMenu">
+                            <controls:MaterialIconButton.ContextMenu>
+                                <ContextMenu ItemsSource="{Binding Symbols}">
+                                    <ContextMenu.ItemContainerStyle>
+                                        <Style TargetType="MenuItem">
+                                            <Setter Property="Header" Value="{Binding Name}" />
+                                            <Setter Property="Command"
+                                                    Value="{Binding DataContext.PlaceSymbolCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <Setter Property="CommandParameter" Value="{Binding}" />
+                                        </Style>
+                                    </ContextMenu.ItemContainerStyle>
+                                </ContextMenu>
+                            </controls:MaterialIconButton.ContextMenu>
+                        </controls:MaterialIconButton>
+                        <material:MaterialIcon Kind="Star"
+                                               Foreground="Goldenrod" Margin="2,0,0,0"
+                                               ToolTip="Favorite"
+                                               Visibility="{Binding IsFavorite, Converter={StaticResource TrueToVisibleConverterKey}}" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">

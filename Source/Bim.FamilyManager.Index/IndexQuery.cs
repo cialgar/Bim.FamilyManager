@@ -227,6 +227,54 @@ public sealed class IndexQuery
     }
 
     /// <summary>
+    ///     Finds the indexed families with the specified name (file name without extension).
+    /// </summary>
+    /// <param name="name">The family name.</param>
+    /// <returns>The matching families; more than one when the same name exists in several sources.</returns>
+    public IReadOnlyList<FamilyRecord> FindByName(string name)
+    {
+        using var connection = _index.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT f.id, f.path, f.name, f.folder, f.size, f.product_version, f.category,
+                   f.category_key, f.omniclass, f.updated_utc
+            FROM families f WHERE f.name = $name COLLATE NOCASE;
+            """;
+        command.Parameters.AddWithValue("$name", name);
+
+        var results = new List<FamilyRecord>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            results.Add(ReadFamilyRecord(reader));
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    ///     Gets the distinct product versions present in the index, newest first, for building filter lists.
+    /// </summary>
+    /// <returns>The product versions.</returns>
+    public IReadOnlyList<string> GetProductVersions()
+    {
+        using var connection = _index.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT DISTINCT product_version FROM families WHERE product_version IS NOT NULL ORDER BY product_version DESC;";
+
+        var versions = new List<string>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            versions.Add(reader.GetString(0));
+        }
+
+        return versions;
+    }
+
+    /// <summary>
     ///     Gets the distinct categories present in the index, for building filter lists.
     /// </summary>
     /// <returns>The categories, ordered alphabetically.</returns>

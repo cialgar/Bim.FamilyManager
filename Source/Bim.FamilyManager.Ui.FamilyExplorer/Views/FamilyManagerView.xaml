@@ -84,15 +84,10 @@
             </Grid>
 
 
-            <Grid Grid.Row="3">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition />
-                    <ColumnDefinition Width="4*" />
-                </Grid.ColumnDefinitions>
+            <StackPanel Grid.Row="3" Orientation="Vertical">
                 <controls:ExtendedTextBox Text="{Binding Path=SearchPattern, UpdateSourceTrigger=PropertyChanged}"
                                           MaxWidth="400"
-                                          Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}"
-                                          Margin="0,10,0,10"
+                                          Margin="0,10,0,4"
                                           HorizontalAlignment="Left"
                                           HorizontalContentAlignment="Stretch"
                                           Watermark="{x:Static resources:StringResources.FamilyManager_Search_Watermark}"
@@ -101,8 +96,30 @@
                                           ButtonImageSource="pack://application:,,,/Bim.FamilyManager.Ui;component/Resources/Images/ClearSecondary_24x24.png"
                                           VerticalContentAlignment="Center"
                                           Background="White"
-                                          ButtonTooltip="{x:Null}" ImageTooltip="{x:Null}" Grid.ColumnSpan="2" />
-            </Grid>
+                                          ButtonTooltip="{x:Null}" ImageTooltip="{x:Null}"
+                                          Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StackPanel}}" />
+                <WrapPanel Orientation="Horizontal" Margin="0,0,0,6">
+                    <ComboBox ItemsSource="{Binding CategoryFilters}"
+                              SelectedItem="{Binding SelectedCategoryFilter}"
+                              DisplayMemberPath="DisplayName"
+                              MinWidth="110" Margin="0,2,4,0"
+                              ToolTip="Filter by category (language-independent)" />
+                    <ComboBox ItemsSource="{Binding VersionFilters}"
+                              SelectedItem="{Binding SelectedVersionFilter}"
+                              DisplayMemberPath="DisplayName"
+                              MinWidth="80" Margin="0,2,4,0"
+                              ToolTip="Filter by Revit version" />
+                    <ComboBox ItemsSource="{Binding TagFilters}"
+                              SelectedItem="{Binding SelectedTagFilter}"
+                              DisplayMemberPath="DisplayName"
+                              MinWidth="80" Margin="0,2,4,0"
+                              ToolTip="Filter by tag" />
+                    <ToggleButton IsChecked="{Binding FavoritesOnly}" Content="★" Width="26" Margin="0,2,4,0"
+                                  ToolTip="Only favorites" />
+                    <ToggleButton IsChecked="{Binding IsGalleryView}" Content="⊞" Width="26" Margin="0,2,0,0"
+                                  ToolTip="Gallery view: all families of the selected folder, including subfolders" />
+                </WrapPanel>
+            </StackPanel>
 
             <Border Grid.Row="4"
                     Background="{StaticResource PrimaryBackgroundBrush}"
@@ -120,7 +137,7 @@
                         <!-- Use ItemsControl with StackPanel as ItemsPanel -->
                         <Grid>
                             <StackPanel Orientation="Vertical"
-                                        Visibility="{Binding IsActiveSearch, Converter={StaticResource FalseToVisibleConverter}}">
+                                        Visibility="{Binding ShowTree, Converter={StaticResource TrueToVisibleConverter}}">
                                 <!-- Families stored directly in the selected folder. Without this section,
                                      they would have no visual representation at all: the ItemsControl below
                                      only renders subfolders, and the FolderView inside it only renders the
@@ -152,6 +169,21 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </StackPanel>
+                            <!-- Gallery view: thumbnail grid of the selected folder, including subfolders. -->
+                            <ItemsControl Width="{Binding ViewportWidth, ElementName=ScrollViewer}"
+                                          ItemsSource="{Binding SelectedFamilySource.SelectedFolder.Families, FallbackValue={x:Null}}"
+                                          Visibility="{Binding ShowGallery, Converter={StaticResource TrueToVisibleConverter}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type viewModels1:IFamilyViewModel}">
+                                        <views1:FamilyView />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                             <ItemsControl Width="{Binding ViewportWidth, ElementName=ScrollViewer}"
                                           ItemsSource="{Binding SearchResult}"
                                           Visibility="{Binding IsActiveSearch, Converter={StaticResource TrueToVisibleConverter}}">

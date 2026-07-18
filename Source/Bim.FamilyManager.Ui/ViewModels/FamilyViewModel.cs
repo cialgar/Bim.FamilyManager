@@ -43,13 +43,18 @@ public abstract class FamilyViewModel<TLayoutOptions> : FamilyManagerItemViewMod
     /// </remarks>
     private static readonly BitmapImage DownloadImage;
 
+    private readonly RelayCommand _addTagCommand;
+    private readonly IFamilyAnnotations _annotations;
     private readonly Func<FamilyDropHandler> _dropHandlerFactory;
     private readonly RelayCommand _editFamilyCommand;
     private readonly IFamilyManager _familyManager;
     private readonly RelayCommand _loadFamilyCommand;
     private readonly ILogger<FamilyViewModel<TLayoutOptions>> _logger;
+    private readonly RelayCommand _placeFamilyCommand;
+    private readonly RelayCommand<IFamilySymbolViewModel> _placeSymbolCommand;
     private readonly RelayCommand _removeFamilyCommand;
     private readonly RevitTask _revitTask;
+    private readonly RelayCommand<TagOptionViewModel> _toggleTagCommand;
     private IList<IFamilySymbolViewModel>? _symbols;
 
     /// <summary>
@@ -82,16 +87,22 @@ public abstract class FamilyViewModel<TLayoutOptions> : FamilyManagerItemViewMod
                               Func<FamilyDropHandler> dropHandlerFactory,
                               IOptionsMonitor<TLayoutOptions> layoutOptions,
                               RevitTask revitTask,
+                              IFamilyAnnotations annotations,
                               ILogger<FamilyViewModel<TLayoutOptions>> logger)
         : base(layoutOptions)
     {
         _familyManager = familyManager;
         _dropHandlerFactory = dropHandlerFactory;
         _revitTask = revitTask;
+        _annotations = annotations;
         _logger = logger;
         _editFamilyCommand = new RelayCommand(OpenFamily);
         _loadFamilyCommand = new RelayCommand(LoadFamily);
         _removeFamilyCommand = new RelayCommand(RemoveFamily, CanRemoveFamily);
+        _placeFamilyCommand = new RelayCommand(PlaceDefaultSymbol);
+        _placeSymbolCommand = new RelayCommand<IFamilySymbolViewModel>(PlaceSymbol);
+        _toggleTagCommand = new RelayCommand<TagOptionViewModel>(ToggleTag);
+        _addTagCommand = new RelayCommand(AddNewTag);
         Family = family;
 
         StaticWeakEventManager.AddWeakHandler(family, nameof(IRevitFamily.Initialized),
@@ -307,6 +318,169 @@ public abstract class FamilyViewModel<TLayoutOptions> : FamilyManagerItemViewMod
     {
         OnPropertyChanged(nameof(IsLoadedInDocument));
         _removeFamilyCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>
+    ///     Gets the command that places the default type of the family in the active view (double click).
+    /// </summary>
+    public ICommand PlaceFamilyCommand => _placeFamilyCommand;
+
+    /// <summary>
+    ///     Gets the command that places a specific family type in the active view (click on a type).
+    /// </summary>
+    public ICommand PlaceSymbolCommand => _placeSymbolCommand;
+
+    /// <summary>
+    ///     Gets the command that toggles a tag assignment from the context menu.
+    /// </summary>
+    public ICommand ToggleTagCommand => _toggleTagCommand;
+
+    /// <summary>
+    ///     Gets the command that prompts for a new tag and assigns it to the family.
+    /// </summary>
+    public ICommand AddTagCommand => _addTagCommand;
+
+    /// <summary>
+    ///     Gets or sets a value indicating whether the family is marked as favorite.
+    /// </summary>
+    /// <remarks>
+    ///     The state persists in the family index. Families that are not indexed report <c>false</c>
+    ///     and ignore changes.
+    /// </remarks>
+    public bool IsFavorite
+    {
+        get => _annotations.IsFavorite(Family.Name);
+        set
+        {
+            _annotations.SetFavorite(Family.Name, value);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    ///     Gets the tag options shown in the context menu: every known tag with its assignment state
+    ///     for this family.
+    /// </summary>
+    /// <remarks>Evaluated when the context menu opens, so the list always reflects the current index state.</remarks>
+    public IReadOnlyList<TagOptionViewModel> TagOptions
+    {
+        get
+        {
+            var assigned = _annotations.GetTags(Family.Name);
+            return _annotations.GetAllTags()
+                               .Select(tag => new TagOptionViewModel(tag, assigned.Contains(tag, StringComparer.OrdinalIgnoreCase)))
+                               .ToList();
+        }
+    }
+
+    /// <summary>
+    ///     Places the default (first) type of the family in the active view.
+    /// </summary>
+    private void PlaceDefaultSymbol()
+    {
+        PlaceSymbol(Symbols.FirstOrDefault());
+    }
+
+    /// <summary>
+    ///     Loads the family type into the active document and posts a placement request for it.
+    /// </summary>
+    /// <param name="symbolViewModel">The type to place, or <c>null</c> when the family exposes no types.</param>
+    /// <remarks>
+    ///     Mirrors the drag &amp; drop flow of <see cref="FamilyDropHandler" />: load the symbol inside a
+    ///     transaction, validate the active view with <see cref="UIDocument.CanPlaceElementType" /> and
+    ///     post <see cref="UIDocument.PostRequestForElementTypePlacement" />. An incompatible view or a
+    ///     missing document produces a clear message — never a silent failure.
+    /// </remarks>
+    private async void PlaceSymbol(IFamilySymbolViewModel? symbolViewModel)
+    {
+        try
+        {
+            await _revitTask.Run(uiApplication =>
+            {
+                var uiDocument = uiApplication.ActiveUIDocument;
+                if (uiDocument is null)
+                {
+                    TaskDialog.Show("Family Manager", "There is no open document to place the family in.");
+                    return;
+                }
+
+                var symbol = symbolViewModel ?? Symbols.FirstOrDefault();
+                if (symbol is null)
+                {
+                    TaskDialog.Show("Family Manager", $"The family '{Family.Name}' does not contain any placeable type.");
+                    return;
+                }
+
+                using (var transaction = new Autodesk.Revit.DB.Transaction(uiDocument.Document, "Load Family"))
+                {
+                    transaction.Start();
+
+                    if (!_familyManager.TryLoadFamilySymbol(symbol.FamilySymbol, uiDocument.Document, out var familySymbol))
+                    {
+                        // The family manager has already informed the user (version gate, cancelled
+                        // overwrite); nothing was loaded.
+                        transaction.RollBack();
+                        return;
+                    }
+
+                    transaction.Commit();
+
+                    if (!uiDocument.CanPlaceElementType(familySymbol))
+                    {
+                        TaskDialog.Show("Family Manager",
+                            $"The type '{symbol.Name}' of family '{Family.Name}' cannot be placed in the active view. " +
+                            "Switch to a view that supports this category and try again. The family has been loaded into the project.");
+                        return;
+                    }
+
+                    uiDocument.PostRequestForElementTypePlacement(familySymbol);
+                }
+            }).ConfigureAwait(true);
+
+            NotifyChanges();
+        }
+        catch (Exception e)
+        {
+            _logger.LogCritical(e, $"Error while placing family type. Family: {Family.Name}");
+        }
+    }
+
+    /// <summary>
+    ///     Toggles a tag assignment from the context menu.
+    /// </summary>
+    /// <param name="option">The tag option that was clicked.</param>
+    private void ToggleTag(TagOptionViewModel? option)
+    {
+        if (option is null)
+        {
+            return;
+        }
+
+        if (option.IsAssigned)
+        {
+            _annotations.RemoveTag(Family.Name, option.Name);
+        }
+        else
+        {
+            _annotations.AddTag(Family.Name, option.Name);
+        }
+
+        OnPropertyChanged(nameof(TagOptions));
+    }
+
+    /// <summary>
+    ///     Prompts for a new tag name and assigns it to the family.
+    /// </summary>
+    private void AddNewTag()
+    {
+        var tag = Views.TagPromptWindow.Prompt();
+        if (string.IsNullOrWhiteSpace(tag))
+        {
+            return;
+        }
+
+        _annotations.AddTag(Family.Name, tag.Trim());
+        OnPropertyChanged(nameof(TagOptions));
     }
 
     /// <summary>

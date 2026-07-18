@@ -57,8 +57,9 @@ public class FamilyViewModel : FamilyViewModel<FamilyNavigatorLayoutOptions>
         Func<FamilyDropHandler> dropHandlerFactory,
         IOptionsMonitor<FamilyNavigatorLayoutOptions> layoutOptions,
         RevitTask revitTask,
+        IFamilyAnnotations annotations,
         ILogger<FamilyViewModel<FamilyNavigatorLayoutOptions>> logger)
-        : base(family, familyManager, dropHandlerFactory, layoutOptions, revitTask, logger)
+        : base(family, familyManager, dropHandlerFactory, layoutOptions, revitTask, annotations, logger)
     {
         _symbolFactory = symbolFactory;
     }
