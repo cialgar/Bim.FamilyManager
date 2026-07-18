@@ -1,6 +1,7 @@
 ﻿using Autofac;
 using Bim.FamilyManager.Abstractions.Options;
 using Bim.FamilyManager.Abstractions.ViewModels.Settings;
+using Bim.FamilyManager.Rfa;
 using Bim.FamilyManager.Source.Directory.Logic;
 using Bim.FamilyManager.Source.Directory.Options;
 using Bim.FamilyManager.Source.Directory.ViewModels.Settings;
@@ -41,6 +42,11 @@ public class RegistrationModule : Module
 
         builder.RegisterType<DirectorySource>()
                .InstancePerDependency();
+
+        // One shared cache instance: all directory sources read and write the same on-disk entries.
+        builder.Register(_ => FamilyInfoCache.CreateDefault())
+               .AsSelf()
+               .SingleInstance();
 
         builder.Register(context => typeof(DirectorySource))
                .Keyed<Type>(DirectorySource)

@@ -17,6 +17,9 @@ public sealed class RevitFamily : IRevitFamily
     private readonly object _initializationLock = new();
     private readonly ILogger<RevitFamily> _logger;
     private readonly Action<IRevitFamily, Stream> _saveAction;
+    private string? _cachedProduct;
+    private string? _cachedProductVersion;
+    private DateTime? _cachedUpdated;
     private RevitFamilyInfo _familyInfo;
     private IList<IRevitFamilySymbol>? _familySymbols;
     private bool _isLoadedInDocument;
@@ -324,9 +327,43 @@ public sealed class RevitFamily : IRevitFamily
             _familySymbols = null;
             _familyInfo = familyInfo;
             _preview = null;
+            _cachedProduct = null;
+            _cachedProductVersion = null;
+            _cachedUpdated = null;
         }
 
         Initialize();
+    }
+
+    /// <summary>
+    ///     Marks the family as initialized using display information restored from a persistent cache,
+    ///     without reading the family file.
+    /// </summary>
+    /// <param name="preview">The cached preview image, or <c>null</c> when the family has no preview.</param>
+    /// <param name="product">The cached product name.</param>
+    /// <param name="productVersion">The cached product version.</param>
+    /// <param name="updated">The cached last update timestamp.</param>
+    /// <remarks>
+    ///     Family sources call this method when a persistent cache holds the information that
+    ///     <see cref="Initialize" /> would otherwise extract from the family file. The family becomes
+    ///     initialized for display purposes (preview, product, version, update date) and the background
+    ///     initialization queue skips it, so the family file is not read at all. Operations that require
+    ///     the actual family content — the <see cref="Family" /> stream and <see cref="FamilySymbols" /> —
+    ///     still read the file on demand. Once the underlying <see cref="RevitFamilyInfo" /> has been
+    ///     initialized that way, its values take precedence over the cached ones.
+    /// </remarks>
+    public void ApplyCachedInfo(Stream? preview, string product, string productVersion, DateTime updated)
+    {
+        lock (_initializationLock)
+        {
+            _preview = preview;
+            _cachedProduct = product;
+            _cachedProductVersion = productVersion;
+            _cachedUpdated = updated;
+            IsInitialized = true;
+        }
+
+        Initialized?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -363,9 +400,11 @@ public sealed class RevitFamily : IRevitFamily
     /// </summary>
     /// <value>A <see cref="string" /> representing the product name.</value>
     /// <remarks>
-    ///     This property retrieves the product name from the underlying <see cref="RevitFamilyInfo" /> instance.
+    ///     This property retrieves the product name from the underlying <see cref="RevitFamilyInfo" /> instance,
+    ///     falling back to the value restored via <see cref="ApplyCachedInfo" /> while the family file has not
+    ///     been read yet.
     /// </remarks>
-    public string Product => _familyInfo.Product;
+    public string Product => _familyInfo.IsInitialized ? _familyInfo.Product : _cachedProduct ?? _familyInfo.Product;
 
     /// <summary>
     ///     Gets the product version of the Revit family.
@@ -373,16 +412,19 @@ public sealed class RevitFamily : IRevitFamily
     /// <value>A <see cref="string" /> representing the version of the product associated with the Revit family.</value>
     /// <remarks>
     ///     This property retrieves the product version information from the underlying <see cref="RevitFamilyInfo" />
-    ///     instance.
+    ///     instance, falling back to the value restored via <see cref="ApplyCachedInfo" /> while the family file
+    ///     has not been read yet.
     /// </remarks>
-    public string ProductVersion => _familyInfo.ProductVersion;
+    public string ProductVersion => _familyInfo.IsInitialized ? _familyInfo.ProductVersion : _cachedProductVersion ?? _familyInfo.ProductVersion;
 
     /// <summary>
     ///     Gets the date and time when the Revit family was last updated.
     /// </summary>
     /// <value>A <see cref="DateTime" /> representing the last update timestamp of the Revit family.</value>
     /// <remarks>
-    ///     This property retrieves the update information from the associated <see cref="RevitFamilyInfo" /> instance.
+    ///     This property retrieves the update information from the associated <see cref="RevitFamilyInfo" /> instance,
+    ///     falling back to the value restored via <see cref="ApplyCachedInfo" /> while the family file has not been
+    ///     read yet.
     /// </remarks>
-    public DateTime Updated => _familyInfo.Updated;
+    public DateTime Updated => _familyInfo.IsInitialized ? _familyInfo.Updated : _cachedUpdated ?? _familyInfo.Updated;
 }

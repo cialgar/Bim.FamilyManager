@@ -5,6 +5,7 @@ using Autodesk.Internal.InfoCenter;
 using Autodesk.Windows;
 using Bim.FamilyManager.Abstractions;
 using Bim.FamilyManager.Base.Logic;
+using Bim.FamilyManager.Rfa;
 using Bim.FamilyManager.Source.Directory.Options;
 using Bim.FamilyManager.Ui.Resources;
 using Microsoft.Extensions.Logging;
@@ -32,6 +33,7 @@ public sealed class DirectorySource : FamilySource<DirectorySourceOptions>
 
     private static readonly Regex BackupRegex = new(@"\.\d{4}\.rfa$", RegexOptions.Compiled);
     private static readonly Stream PreviewStream;
+    private readonly FamilyInfoCache _familyInfoCache;
     private readonly ILogger<DirectorySource> _logger;
     private readonly string _rootPath;
     private DirectoryFileCache? _fileCache;
@@ -58,15 +60,17 @@ public sealed class DirectorySource : FamilySource<DirectorySourceOptions>
     /// <param name="options">The <see cref="DirectorySourceOptions" /> that specifies the configuration for the directory source.</param>
     /// <param name="familyManager">An implementation of the <see cref="IFamilyManager" /> interface used to manage Revit families.</param>
     /// <param name="familyFactory">A factory delegate for creating instances of <see cref="RevitFamily" />.</param>
+    /// <param name="familyInfoCache">The persistent cache used to serve family display information without reading the family files.</param>
     /// <param name="logger">An instance of <see cref="ILogger{DirectorySource}" /> used for logging.</param>
     /// <remarks>
     /// This constructor initializes the directory source with the specified options, family manager, and family factory.
     /// It also sets the root path for the directory source based on the provided options.
     /// </remarks>
     public DirectorySource(DirectorySourceOptions options, IFamilyManager familyManager, IRevitFamily.Factory familyFactory,
-                           ILogger<DirectorySource> logger)
+                           FamilyInfoCache familyInfoCache, ILogger<DirectorySource> logger)
         : base(options, familyManager, familyFactory)
     {
+        _familyInfoCache = familyInfoCache;
         _logger = logger;
         _rootPath = Options.Path;
     }
@@ -223,6 +227,8 @@ public sealed class DirectorySource : FamilySource<DirectorySourceOptions>
                 {
                     family = CreateRevitFamily(familyName, CreateFamilyInfo(set.FamilyFile),
                         (revitFamily, stream) => SaveFamily(revitFamily, stream, set.FamilyFile));
+
+                    ApplyOrCaptureCachedInfo(family, set.FamilyFile);
                 }
             }
             catch (Exception e)
@@ -235,6 +241,81 @@ public sealed class DirectorySource : FamilySource<DirectorySourceOptions>
             {
                 yield return family;
             }
+        }
+    }
+
+    /// <summary>
+    /// Applies cached display information to a newly created family, or arranges for it to be captured.
+    /// </summary>
+    /// <param name="family">The newly created family.</param>
+    /// <param name="familyFile">The full path of the family file backing the family.</param>
+    /// <remarks>
+    /// On a cache hit the family is initialized from the cache and the family file is not read at all —
+    /// the background initialization queue skips already initialized families. On a cache miss the family
+    /// keeps the regular initialization flow (the queue reads the file), and the extracted information is
+    /// stored in the cache when the <see cref="IRevitFamily.Initialized" /> event fires. The same
+    /// subscription refreshes the entry after the family file is overwritten via
+    /// <see cref="SaveFamily" />, because re-initialization raises the event again.
+    /// </remarks>
+    private void ApplyOrCaptureCachedInfo(IRevitFamily family, string familyFile)
+    {
+        if (family is not RevitFamily revitFamily)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_familyInfoCache.TryGet(familyFile, out var cachedInfo))
+            {
+                var preview = cachedInfo!.Thumbnail is null ? null : new MemoryStream(cachedInfo.Thumbnail);
+                revitFamily.ApplyCachedInfo(preview, cachedInfo.Product, cachedInfo.ProductVersion, cachedInfo.Updated);
+
+                _logger.LogInformation("Family info served from cache; the family file was not read. Family: {Family}", family.Name);
+                return;
+            }
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to read the family info cache. Family file: {FamilyFile}", familyFile);
+        }
+
+        revitFamily.Initialized += (_, _) => StoreFamilyInfoInCache(revitFamily, familyFile);
+    }
+
+    /// <summary>
+    /// Stores the extracted display information of an initialized family in the persistent cache.
+    /// </summary>
+    /// <param name="family">The initialized family.</param>
+    /// <param name="familyFile">The full path of the family file backing the family.</param>
+    private void StoreFamilyInfoInCache(RevitFamily family, string familyFile)
+    {
+        try
+        {
+            byte[]? thumbnail = null;
+            using (var preview = family.Preview)
+            {
+                if (preview is not null)
+                {
+                    using var buffer = new MemoryStream();
+                    preview.CopyTo(buffer);
+                    thumbnail = buffer.ToArray();
+                }
+            }
+
+            _familyInfoCache.Store(familyFile, new CachedFamilyInfo
+            {
+                Product = family.Product,
+                ProductVersion = family.ProductVersion,
+                Updated = family.Updated,
+                Thumbnail = thumbnail
+            });
+
+            _logger.LogInformation("Extracted family info stored in the cache. Family: {Family}", family.Name);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to store the extracted family info in the cache. Family: {Family}", family.Name);
         }
     }
 
