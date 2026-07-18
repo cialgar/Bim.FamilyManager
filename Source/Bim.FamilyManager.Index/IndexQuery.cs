@@ -102,27 +102,119 @@ public sealed class IndexQuery
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
-            DateTime? updated = null;
-            if (!reader.IsDBNull(9) &&
-                DateTime.TryParse(reader.GetString(9), CultureInfo.InvariantCulture,
-                                  DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
-            {
-                updated = parsed;
-            }
+            results.Add(ReadFamilyRecord(reader));
+        }
 
-            results.Add(new FamilyRecord
+        return results;
+    }
+
+    /// <summary>
+    ///     Materializes a <see cref="FamilyRecord" /> from the standard 10-column projection.
+    /// </summary>
+    /// <param name="reader">A reader positioned on a row of the standard projection.</param>
+    /// <returns>The materialized record.</returns>
+    private static FamilyRecord ReadFamilyRecord(SqliteDataReader reader)
+    {
+        DateTime? updated = null;
+        if (!reader.IsDBNull(9) &&
+            DateTime.TryParse(reader.GetString(9), CultureInfo.InvariantCulture,
+                              DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
+        {
+            updated = parsed;
+        }
+
+        return new FamilyRecord
+        {
+            Id = reader.GetInt64(0),
+            Path = reader.GetString(1),
+            Name = reader.GetString(2),
+            Folder = reader.GetString(3),
+            Size = reader.GetInt64(4),
+            ProductVersion = reader.IsDBNull(5) ? null : reader.GetString(5),
+            Category = reader.IsDBNull(6) ? null : reader.GetString(6),
+            CategoryKey = reader.IsDBNull(7) ? null : reader.GetString(7),
+            OmniClassNumber = reader.IsDBNull(8) ? null : reader.GetString(8),
+            Updated = updated
+        };
+    }
+
+    /// <summary>
+    ///     Gets the immediate child folders of the specified folder within a source.
+    /// </summary>
+    /// <param name="rootPath">The root directory of the family source.</param>
+    /// <param name="parentFolder">The source-relative parent folder, or an empty string for the root.</param>
+    /// <returns>The source-relative paths of the immediate child folders, ordered alphabetically.</returns>
+    /// <remarks>
+    ///     The hierarchy is reconstructed from the <c>folder</c> column, so only folders that (directly
+    ///     or transitively) contain family files are returned — empty directories do not appear, which
+    ///     is intentional for a family browser.
+    /// </remarks>
+    public IReadOnlyList<string> GetChildFolders(string rootPath, string parentFolder)
+    {
+        using var connection = _index.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT DISTINCT f.folder
+            FROM families f
+            JOIN sources s ON s.id = f.source_id
+            WHERE s.root_path = $root AND f.folder != $parent AND ($parent = '' OR f.folder LIKE $prefix);
+            """;
+        command.Parameters.AddWithValue("$root", System.IO.Path.GetFullPath(rootPath));
+        command.Parameters.AddWithValue("$parent", parentFolder);
+        command.Parameters.AddWithValue("$prefix", parentFolder + "\\%");
+
+        var children = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var prefixLength = parentFolder.Length == 0 ? 0 : parentFolder.Length + 1;
+
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            var folder = reader.GetString(0);
+            var remainder = folder[prefixLength..];
+            var separator = remainder.IndexOf('\\');
+            var childSegment = separator < 0 ? remainder : remainder[..separator];
+
+            if (childSegment.Length > 0)
             {
-                Id = reader.GetInt64(0),
-                Path = reader.GetString(1),
-                Name = reader.GetString(2),
-                Folder = reader.GetString(3),
-                Size = reader.GetInt64(4),
-                ProductVersion = reader.IsDBNull(5) ? null : reader.GetString(5),
-                Category = reader.IsDBNull(6) ? null : reader.GetString(6),
-                CategoryKey = reader.IsDBNull(7) ? null : reader.GetString(7),
-                OmniClassNumber = reader.IsDBNull(8) ? null : reader.GetString(8),
-                Updated = updated
-            });
+                children.Add(parentFolder.Length == 0 ? childSegment : parentFolder + "\\" + childSegment);
+            }
+        }
+
+        return children.ToList();
+    }
+
+    /// <summary>
+    ///     Gets the families of the specified folder within a source.
+    /// </summary>
+    /// <param name="rootPath">The root directory of the family source.</param>
+    /// <param name="folder">The source-relative folder, or an empty string for the root.</param>
+    /// <param name="includeSubfolders">If <c>true</c>, includes families in all subfolders.</param>
+    /// <returns>The matching families, ordered by name.</returns>
+    public IReadOnlyList<FamilyRecord> GetFamilies(string rootPath, string folder, bool includeSubfolders)
+    {
+        using var connection = _index.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT f.id, f.path, f.name, f.folder, f.size, f.product_version, f.category,
+                   f.category_key, f.omniclass, f.updated_utc
+            FROM families f
+            JOIN sources s ON s.id = f.source_id
+            WHERE s.root_path = $root
+              AND (f.folder = $folder OR ($includeSub AND ($folder = '' OR f.folder LIKE $prefix)))
+            ORDER BY f.name COLLATE NOCASE;
+            """;
+        command.Parameters.AddWithValue("$root", System.IO.Path.GetFullPath(rootPath));
+        command.Parameters.AddWithValue("$folder", folder);
+        command.Parameters.AddWithValue("$includeSub", includeSubfolders);
+        command.Parameters.AddWithValue("$prefix", folder + "\\%");
+
+        var results = new List<FamilyRecord>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            results.Add(ReadFamilyRecord(reader));
         }
 
         return results;

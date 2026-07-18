@@ -4,27 +4,39 @@
 
 ## Estado actual
 
-**Fase 1 CERRADA** (2026-07-18): criterio "0 bytes" verificado por el usuario — sesión B con
-0 extracciones y 42 familias servidas desde caché, miniaturas y badges instantáneos.
-**Fase activa: Fase 2** (índice SQLite) — núcleo puro **hecho y testeado** (35/35 tests):
-`PartAtomReader` completo, `Bim.FamilyManager.Index` (schema + `IndexScanner` incremental +
-`IndexQuery` FTS5). Falta `IndexedDirectorySource` (integración Revit), re-scan al abrir y
-la prueba de estrés con la librería completa.
-**Última sesión:** 2026-07-18 — cierre Fase 1, arranque Fase 2 (núcleo del índice).
+**Fase 1 CERRADA** (2026-07-18). **Fase activa: Fase 2 — COMPLETA salvo smoke test del
+usuario**: núcleo del índice (35/35 tests) + `IndexedDirectorySource` con re-scan en
+background + "Reindex now" en settings + estrés superado con margen. Desplegado en Revit 2026.
+**Última sesión:** 2026-07-18 — IndexedDirectorySource, Reindexar, estrés 25k, limpieza
+de la fuente fantasma.
+
+## Métricas de estrés (2026-07-18, harness fuera de Revit)
+
+- **Funcional** (carpeta real `Uploads LR\prueba`, **6 .rfa**, 7.5 MB, sin subcarpetas):
+  indexación inicial 169 ms, re-scan 4 ms, 6/6 con categoría y versión correctas (categorías
+  en español — familias exportadas con Revit ES — y OmniClass donde existe).
+- **Escala** (sintético: 25.000 .rfa reales via hardlinks NTFS, 500 carpetas hoja, 25 copias
+  físicas base por el límite de 1023 links/archivo):
+  - Indexación inicial: **25.1 s** (997 familias/s), DB 22.5 MB. Caveat: caché de SO
+    caliente y 4 contenidos únicos; en librería real el cuello será I/O de disco.
+  - Re-scan incremental sin cambios: **1.5 s** (objetivo < 10 s ✔).
+  - Re-scan con ~1000 modificadas + 5 borradas: 2.2 s (el "1000" es artefacto de hardlinks:
+    tocar un link cambia el mtime compartido; el scanner detectó correctamente todos).
+  - Búsqueda FTS (8 tipos, 10 reps c/u): **mediana 0.2-42 ms, máx 56 ms** (objetivo < 100 ms ✔).
+  - Set sintético y DB borrados al terminar (verificado).
 
 ## Próximos pasos inmediatos
 
-1. Fase 2, tarea 3 — `IndexedDirectorySource`: implementación de `FamilySource<TOptions>`
-   que consulta el índice en vez de escanear (jerarquía de carpetas desde la columna
-   `folder`). Decidir en ARCHITECTURE si convive con `DirectorySource` o la reemplaza.
-2. Fase 2, tarea 4 — comando "Reindexar" en settings + re-scan ligero al abrir Revit
-   (`IndexScanner.Scan` ya es incremental: solo diff de mtimes si nada cambió).
-3. Fase 2, tarea 5 — estrés con la librería real completa: medir indexación inicial,
-   re-scan (< 10 s objetivo) y latencia de búsqueda (< 100 ms objetivo); registrar métricas.
-4. Fase 3 — mapa de normalización de categorías ES/EN que rellene `category_key` (decisión
-   registrada en ARCHITECTURE: el PartAtom no trae id estable; OmniClass solo en modelo).
-5. Pendientes heredados: hueco Navigator; .rfa en raíz sin listar; PRs a scotec-revit
-   (Category, InvariantCulture en `updated`, stream del loader sin disponer en Initialize).
+1. **Usuario:** smoke test de la fuente indexada en Revit 2026 — Settings → Add → tipo
+   "Indexed Directory" → apuntar a una carpeta (p. ej. `Uploads LR`), Save; opcional
+   "Reindex now" en el settings. Verificar: navegación instantánea, familias visibles,
+   drag & drop, y que el botón refresh del panel dispara el re-scan incremental (log:
+   "Incremental index scan completed"). Con OK → cerrar Fase 2 (criterios en PLAN.md).
+2. Fase 3 — búsqueda global sobre FTS5 en la UI, filtros, tags/favoritos, mapa de
+   normalización de categorías ES/EN (`category_key`), aviso de versión al cargar.
+3. Pendientes heredados: hueco Navigator; .rfa en raíz sin listar; PRs a scotec-revit
+   (Category, InvariantCulture en `updated`, stream del loader sin disponer) + micro-PR
+   upstream Bim.FamilyManager (fuente fantasma X:\ en DefaultFamilySources.json).
 
 ## Fase 2 — estado de detalle
 

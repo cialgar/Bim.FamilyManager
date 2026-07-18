@@ -1,6 +1,7 @@
 ﻿using Autofac;
 using Bim.FamilyManager.Abstractions.Options;
 using Bim.FamilyManager.Abstractions.ViewModels.Settings;
+using Bim.FamilyManager.Index;
 using Bim.FamilyManager.Rfa;
 using Bim.FamilyManager.Source.Directory.Logic;
 using Bim.FamilyManager.Source.Directory.Options;
@@ -24,6 +25,8 @@ public class RegistrationModule : Module
 {
     private const string DirectorySource = "DirectorySource";
     private const string DirectorySourceOptions = "DirectorySourceOptions";
+    private const string IndexedDirectorySource = "IndexedDirectorySource";
+    private const string IndexedDirectorySourceOptions = "IndexedDirectorySourceOptions";
 
     /// <summary>
     ///     Registers various components, view models, views, and services into the dependency injection container.
@@ -66,6 +69,35 @@ public class RegistrationModule : Module
                .InstancePerDependency();
 
         builder.RegisterType<ViewModelDescriptor<DirectorySourceSettingsViewModel, DirectorySourceSettingsView>>()
+               .As<IViewModelDescriptor>()
+               .SingleInstance();
+
+        // Index-backed directory source (coexists with DirectorySource; intended for large libraries).
+        builder.Register(_ => FamilyIndex.CreateDefault())
+               .AsSelf()
+               .SingleInstance();
+
+        builder.RegisterType<Logic.IndexedDirectorySource>()
+               .InstancePerDependency();
+
+        builder.Register(context => typeof(Logic.IndexedDirectorySource))
+               .Keyed<Type>(IndexedDirectorySource)
+               .SingleInstance();
+
+        builder.RegisterType<Options.IndexedDirectorySourceOptions>()
+               .Keyed<IFamilySourceOptions>(IndexedDirectorySource)
+               .As<IFamilySourceOptions>()
+               .InstancePerDependency();
+
+        builder.Register(context => typeof(Options.IndexedDirectorySourceOptions))
+               .Keyed<Type>(IndexedDirectorySourceOptions)
+               .SingleInstance();
+
+        builder.RegisterType<IndexedDirectorySourceSettingsViewModel>()
+               .Keyed<IFamilySourceSettingsViewModel>(IndexedDirectorySource)
+               .InstancePerDependency();
+
+        builder.RegisterType<ViewModelDescriptor<IndexedDirectorySourceSettingsViewModel, IndexedDirectorySourceSettingsView>>()
                .As<IViewModelDescriptor>()
                .SingleInstance();
     }

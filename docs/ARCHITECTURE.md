@@ -116,6 +116,30 @@ pasó por la herramienta no los tiene.
 
 ## Registro de decisiones tomadas en desarrollo
 
+- 2026-07-18 — **`IndexedDirectorySource` CONVIVE con `DirectorySource`** (no la reemplaza):
+  tipo de fuente nuevo ("Indexed Directory") seleccionable al agregar fuentes. Razones:
+  (a) el plan original pedía mantener `DirectorySource` intacta como opción de
+  compatibilidad; (b) cero riesgo de regresión para fuentes pequeñas ya configuradas;
+  (c) la indexada es opt-in para librerías grandes, que es su caso de uso. Diseño: carpetas
+  y familias se sirven del índice (apertura instantánea); un scan incremental corre en
+  background en la primera enumeración de la sesión (re-scan ligero al abrir) y en cada
+  Reload manual — **el botón refresh del panel ES el comando de reindexado** del lado del
+  panel; además el settings de la fuente indexada tiene botón "Reindex now" con resumen
+  (útil al agregar una librería grande). Cuando un scan detecta cambios, la fuente se
+  recarga sola. Reutiliza `FamilyInfoCache` (mismo flujo hit/miss que DirectorySource).
+- 2026-07-18 — Micro-PR candidato a upstream: `DefaultFamilySources.json` trae de fábrica
+  una fuente fantasma `X:\Familysources` con `IsEditable: false` — imposible de quitar desde
+  la UI y apunta a una unidad que normalmente no existe. En el fork quedó vacío
+  (`"Sources": []`); en la máquina del usuario se limpió también el settings.json persistido.
+- 2026-07-18 — Métricas de estrés del índice (harness fuera de Revit, set sintético de
+  25.000 .rfa reales via hardlinks en 500 carpetas): indexación inicial 25.1 s (997
+  familias/s; caché de SO caliente — en librerías reales el cuello será I/O de disco), DB
+  22.5 MB, re-scan incremental sin cambios **1.5 s** (objetivo < 10 s ✔), búsqueda FTS
+  mediana 0.2-42 ms / máx 56 ms (objetivo < 100 ms ✔). Funcional contra carpeta real
+  "prueba" (6 .rfa): 169 ms inicial, 4 ms re-scan, categorías y OmniClass correctos —
+  incluidas categorías en español de familias exportadas con Revit ES, confirmando la
+  necesidad del `category_key` multiidioma.
+
 (Agregar aquí con fecha cada decisión relevante que se tome durante las fases.)
 
 - 2026-07-18 — Se adopta Bim.FamilyManager (develop) como base del fork. Análisis inicial completado.
