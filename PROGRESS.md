@@ -10,10 +10,18 @@ galería, aviso de upgrade, doble clic, tipo específico, vista incompatible).
 **Residuo diferido de Fase 3:** verificar manualmente el BLOQUEO de versión 2026→2025
 cuando exista un entorno Revit 2025 (E.10) — misma lógica que el aviso verificado, con la
 comparación invertida.
-**Próximo:** mini-sesión de **branding** (adelanto de Fase 6, tarea 1: nombre propio,
-íconos, tab del ribbon, manteniendo atribución MIT al upstream). Requiere decisiones del
-usuario: nombre del producto, nombre del tab y assets/íconos.
-**Última sesión:** 2026-07-18 — cierre de Fase 3.
+**Branding (adelanto Fase 6, tarea 1) — textos y atribución HECHOS; íconos pendientes del
+logo.** Decisiones del usuario: nombre "LibraryRevit Family Manager", íconos del logo de
+libraryrevit.com, alcance completo. Cambios: tab del ribbon "LibraryRevit", panel "Family
+Manager", pane dockable y diálogos renombrados (valores de .resx — sin tocar Designer),
+`.addin` con Name/VendorId "LibraryRevit" + atribución en VendorDescription, footer de
+atribución MIT en el diálogo de settings, y `NOTICE.md` (scotec MIT, OpenMcdf MPL-2.0).
+**Pendiente:** (1) redeploy — Revit estaba abierto y bloqueó las DLLs (el build/publish ya
+está listo en `Publish/`); (2) íconos — Cloudflare impide descargar el logo de
+libraryrevit.com: el usuario debe dejar el archivo (PNG/SVG, idealmente cuadrado ≥256px) en
+`branding/logo-source.png` del workspace, y de ahí se generan `logo.png` del panel/settings
+y los `FamilyManagerPrimary_16x16/32x32.png` del ribbon.
+**Última sesión:** 2026-07-18 — cierre de Fase 3 + branding de textos/atribución.
 
 ## Fase 3 — capa UI (sesión 2026-07-18, noche)
 

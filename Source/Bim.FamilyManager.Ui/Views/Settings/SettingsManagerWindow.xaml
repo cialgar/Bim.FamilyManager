@@ -70,6 +70,11 @@
                                 ContentTemplateSelector="{Binding DataTemplateSelector}" />
             </Grid>
 
+            <!-- MIT attribution to the upstream project this add-in is based on. -->
+            <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Margin="8,10,0,10"
+                       FontSize="10" Foreground="{StaticResource SecondaryBrush}" TextWrapping="Wrap"
+                       Text="Based on Bim.FamilyManager by scotec Software Solutions AB (MIT License)" />
+
             <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right"
                         Margin="0,10,10,10">
                 <controls:MaterialIconButton Height="32" Foreground="{StaticResource ButtonSaveBrush}"
