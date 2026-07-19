@@ -65,9 +65,13 @@ formato de solución `.slnx` y `LangVersion 14.0`; los SDK 8/9 no compilan.
 # -m:1 es OBLIGATORIO: el markup-compile WPF tiene una carrera en builds multiproceso
 # que produce CS2001/BG1002 (archivos .g.cs/.baml ausentes) de forma intermitente.
 # Si aun con -m:1 salen CS2001/BG1002: borrar TODOS los obj/ y bin/ bajo Source/ y
-# recompilar. Causa: los obj/ NO incluyen RevitYear en su ruta, así que alternar builds con
-# distinto RevitYear (p. ej. dotnet test usa 2025 por defecto) corrompe el estado
-# incremental del markup-compile WPF. La limpieza parcial lo empeora.
+# recompilar. OJO: Remove-Item FALLA EN SILENCIO con las rutas del source generator de
+# Scotec (superan MAX_PATH) y deja limpiezas parciales que corrompen el estado incremental
+# del markup-compile WPF — usar rd con prefijo long-path:
+#   Get-ChildItem Source -Directory | % { foreach ($d in @("obj","bin")) {
+#     $p = "$($_.FullName)\$d"; if (Test-Path $p) { cmd /c "rd /s /q `"\\?\$p`"" } } }
+# Además, alternar builds con distinto RevitYear (dotnet test usa 2025 por defecto)
+# invalida el estado incremental: correr tests siempre con -p:RevitYear=2026 -p:Platform=x64.
 dotnet build Source/Bim.FamilyManager.slnx -c Release -p:RevitYear=2026 -m:1
 
 # Tests (proyectos puros; existirán desde Fase 1)
