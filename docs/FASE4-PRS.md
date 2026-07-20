@@ -1,5 +1,13 @@
 # FASE4-PRS.md — PRs a upstream e issues a scotec-revit
 
+> **DECISIÓN (2026-07-19): los PRs y los issues NO se abren por ahora.** El proyecto
+> sigue con el fork actual como remote y la decisión de privatizar el repo queda para el
+> final. Este documento se conserva íntegro como material listo por si se cambia de
+> opinión: las 6 ramas siguen pusheadas al fork y los cuerpos de abajo siguen siendo
+> válidos mientras `develop` upstream siga en `e089d29` (si upstream avanza, rebasear las
+> ramas antes de abrir). Los 4 fixes nuevos ya están fusionados en `feature/rfa-cache`,
+> así que el fork no depende de que upstream los acepte.
+
 Preparado el 2026-07-19. Las 6 ramas están pusheadas al fork (`cialgar/Bim.FamilyManager`),
 cada una basada en `develop` upstream (`e089d29`), compiladas sin errores con
 `-p:RevitYear=2026`. No hay `gh` CLI, así que los PRs se abren desde la web: para cada PR,

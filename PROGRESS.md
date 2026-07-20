@@ -4,14 +4,15 @@
 
 ## Estado actual
 
-**Fase 4 EJECUTADA (2026-07-19), pendiente solo la apertura web de los PRs por el
-usuario.** Los 5 fixes del catálogo de deuda + los hallazgos aplicables a upstream están
-implementados en 6 ramas independientes sobre `develop` upstream, compiladas y pusheadas
-al fork. Cuerpos de PR en inglés, URLs de compare, orden de prioridad (panel vacío
-primero) y drafts de los 3 issues a `scotec-revit` (Category, InvariantCulture, stream
-sin disponer): todo en **`docs/FASE4-PRS.md`** — el usuario solo abre cada URL, pega
-título+cuerpo y crea el PR/issue, marcando los checkboxes del final de ese doc.
-**Fases 0, 1, 2 y 3 CERRADAS** (2026-07-18). Fase 3 verificada por el usuario con el smoke
+**Fases 0-4 CERRADAS.** Fase 4 cerrada **por decisión del usuario** (2026-07-19): los
+PRs e issues a scotec NO se abren por ahora — el fork sigue como remote y la decisión de
+privatizar el repo queda para el final del proyecto. Los 6 fixes están **aplicados a
+`feature/rfa-cache`** (panel vacío + logging ya estaban en la base; DirectoryFileCache,
+PreviewStream, BackupRegex y DefaultFamilySources fusionados desde sus ramas de PR;
+build 0 errores, 51/51 tests). Las 6 ramas `fix/*` quedan vivas en el fork y
+`docs/FASE4-PRS.md` conserva cuerpos, URLs y drafts de issues por si se reabre la
+decisión (si upstream avanza de `e089d29`, rebasear antes de abrir).
+**Siguiente fase: 5 (fuente remota LibraryRevit).** Fase 3 verificada por el usuario con el smoke
 test A-F completo (búsqueda global, filtros unificados, favoritos/tags persistentes,
 galería, aviso de upgrade, doble clic, tipo específico, vista incompatible).
 **Residuo diferido de Fase 3:** verificar manualmente el BLOQUEO de versión 2026→2025
@@ -28,7 +29,12 @@ está listo en `Publish/`); (2) íconos — Cloudflare impide descargar el logo 
 libraryrevit.com: el usuario debe dejar el archivo (PNG/SVG, idealmente cuadrado ≥256px) en
 `branding/logo-source.png` del workspace, y de ahí se generan `logo.png` del panel/settings
 y los `FamilyManagerPrimary_16x16/32x32.png` del ribbon.
-**Última sesión:** 2026-07-19 — Fase 4: preparación de los 6 PRs upstream + 3 issue drafts.
+**Última sesión:** 2026-07-19 — Fase 4: preparación de los 6 PRs upstream + 3 issue
+drafts; luego cierre por decisión (no abrir PRs) y fusión de los 4 fixes nuevos a
+`feature/rfa-cache` (merges `632a0a9`, `0f91f52`, `8fc1ad2`, `61b92b1`; conflictos solo
+en declaraciones de campos de `DirectorySource`/`AzureStorageSource`, resueltos
+conservando ambos lados). OJO: el deploy en `%AppData%\Autodesk\Revit\Addins\2026` es
+anterior a estos merges — redeploy pendiente para que Revit corra los fixes fusionados.
 
 ## Fase 4 — PRs upstream (sesión 2026-07-19)
 
@@ -269,8 +275,8 @@ Estado tras la sesión de diagnóstico del 2026-07-18 (3ª sesión):
 
 ## Bloqueos
 
-- Ninguno bloqueante. Requiere acción del usuario: abrir los 6 PRs y 3 issues en la web
-  de GitHub siguiendo `docs/FASE4-PRS.md` (no hay `gh` CLI autenticado).
+- Ninguno. La apertura de PRs/issues a scotec quedó descartada por decisión (reabrible
+  vía `docs/FASE4-PRS.md`).
 
 ## Historial de sesiones
 

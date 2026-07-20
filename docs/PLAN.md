@@ -203,7 +203,12 @@ Issues menores a `scotec-revit` (exponer Category, InvariantCulture en `updated`
 
 ### Criterios de aceptación
 
-- [x] Fixes con tests donde sea posible (proyectos upstream sin test harness → verificación por build + revisión; el fix espejo del fork corre con los 51 tests); al menos 2 PRs abiertos upstream. **Pendiente solo el clic final del usuario en la web** (no hay `gh` CLI): las 6 ramas y sus cuerpos de PR están listos en `docs/FASE4-PRS.md`.
+- [x] Fixes con tests donde sea posible (proyectos upstream sin test harness → verificación por build + revisión; el fix espejo del fork corre con los 51 tests). El criterio "al menos 2 PRs abiertos upstream" se **anula por decisión del usuario** (2026-07-19): los PRs e issues no se abren por ahora — el fork sigue como remote y la privatización se decide al final. Material completo conservado en `docs/FASE4-PRS.md` por si se reabre.
+
+> **Fase 4 CERRADA POR DECISIÓN (2026-07-19).** Los 6 fixes están aplicados al fork
+> (`feature/rfa-cache`): panel vacío + logging ya estaban en la base de la rama, y los
+> 4 restantes (DirectoryFileCache, PreviewStream, BackupRegex, DefaultFamilySources)
+> se fusionaron desde sus ramas de PR, que quedan vivas en el fork por si se abren después.
 
 ---
 
