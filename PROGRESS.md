@@ -4,6 +4,13 @@
 
 ## Estado actual
 
+**Fase 4 EJECUTADA (2026-07-19), pendiente solo la apertura web de los PRs por el
+usuario.** Los 5 fixes del catálogo de deuda + los hallazgos aplicables a upstream están
+implementados en 6 ramas independientes sobre `develop` upstream, compiladas y pusheadas
+al fork. Cuerpos de PR en inglés, URLs de compare, orden de prioridad (panel vacío
+primero) y drafts de los 3 issues a `scotec-revit` (Category, InvariantCulture, stream
+sin disponer): todo en **`docs/FASE4-PRS.md`** — el usuario solo abre cada URL, pega
+título+cuerpo y crea el PR/issue, marcando los checkboxes del final de ese doc.
 **Fases 0, 1, 2 y 3 CERRADAS** (2026-07-18). Fase 3 verificada por el usuario con el smoke
 test A-F completo (búsqueda global, filtros unificados, favoritos/tags persistentes,
 galería, aviso de upgrade, doble clic, tipo específico, vista incompatible).
@@ -21,7 +28,40 @@ está listo en `Publish/`); (2) íconos — Cloudflare impide descargar el logo 
 libraryrevit.com: el usuario debe dejar el archivo (PNG/SVG, idealmente cuadrado ≥256px) en
 `branding/logo-source.png` del workspace, y de ahí se generan `logo.png` del panel/settings
 y los `FamilyManagerPrimary_16x16/32x32.png` del ribbon.
-**Última sesión:** 2026-07-18 — cierre de Fase 3 + branding de textos/atribución.
+**Última sesión:** 2026-07-19 — Fase 4: preparación de los 6 PRs upstream + 3 issue drafts.
+
+## Fase 4 — PRs upstream (sesión 2026-07-19)
+
+Seis ramas de PR sobre `develop` upstream (`e089d29`), todas compiladas (RevitYear=2026,
+0 errores) y pusheadas a `origin` (fork `cialgar`). Detalle completo, cuerpos y URLs en
+`docs/FASE4-PRS.md`:
+
+1. `fix/empty-family-panel` (`2f1010f`+`0183033`, ya existía) — PRIORITARIO: familias
+   directas de la carpeta seleccionada. Verificado en Revit 2026. Contiene el commit del
+   PR 2 (dependencia real: usa `_logger`/`TryCreateViewModel`); ambos cuerpos lo explican.
+2. `fix/log-binding-errors` (`2f1010f`) — rama nueva apuntando al commit de logging ya
+   existente; PR independiente.
+3. `fix/directory-file-cache` (`6104528`) — ítems 1+2+3 del catálogo en un solo PR
+   (misma clase; separados conflictuarían entre sí): subcarpetas y .yaml servidos desde
+   mapas construidos en `InitializeAsync`, `ILogger` opcional en los catch, y
+   `OnReload` ahora resetea `_fileCache` (hallazgo nuevo: Reload mezclaba subcarpetas
+   frescas con familias stale — sin esto, cachear subcarpetas sería una regresión).
+4. `fix/preview-stream-thread-safety` (`f417981`) — ítem 4 en `DirectorySource`,
+   `AzureStorageSource` y `Folder`: `byte[]` + `MemoryStream` readonly por acceso.
+   Justificación extra hallada: el doc de `LoadResourceAsStream` dice "caller is
+   responsible for disposing" → un caller que cumpla el contrato rompe el ícono de la
+   sesión entera (ObjectDisposedException tragada por WPF).
+5. `fix/backup-file-pattern` (`8196d34`) — ítem 5: `\.\d{4,}\.rfa$` + IgnoreCase en ambas
+   fuentes. Justificación autocontenida: `FileBackupHelper` compara IgnoreCase y genera
+   `.10000` tras `.9999` (D4 no trunca) — el filtro actual discrepa del propio helper.
+6. `fix/default-family-source-placeholder` (`b2f92b2`) — micro-PR: `DefaultFamilySources.json`
+   con `Sources: []` (la entrada `X:\Familysources` se fusionaba como fuente no editable
+   ni eliminable en TODA instalación).
+
+En el fork (`feature/rfa-cache`, `c7ffa8e`): mismo fix de regex aplicado a `IndexScanner`
+(51/51 tests verdes). Los issues a `scotec-revit` quedaron como drafts (no PRs: repo
+ajeno con decisiones de API); el de InvariantCulture redactado fiel a lo observado (bajo
+es-VE/es-CO NO falló; riesgo latente en calendarios no gregorianos).
 
 ## Fase 3 — capa UI (sesión 2026-07-18, noche)
 
@@ -122,10 +162,12 @@ y los `FamilyManagerPrimary_16x16/32x32.png` del ribbon.
 ## Git
 
 - Remotes: `origin` = `https://github.com/cialgar/Bim.FamilyManager` (fork), `upstream` =
-  scotec. Push verificado con `git ls-remote`: `develop` (espejo upstream, tag
-  `upstream-base` en `e089d29`), `fix/empty-family-panel` (`2f1010f` logging + `0183033`
-  DirectFamilies — 2 PRs upstream independientes en Fase 4) y `feature/rfa-cache` (rama
-  actual, `cfe30bf`, basada en fix/empty-family-panel para conservar el fix del panel).
+  scotec. Ramas en origin: `develop` (espejo upstream, tag `upstream-base` en `e089d29`),
+  `feature/rfa-cache` (rama actual del fork, `c7ffa8e`, basada en fix/empty-family-panel)
+  y las 6 ramas de PR de Fase 4: `fix/empty-family-panel`, `fix/log-binding-errors`,
+  `fix/directory-file-cache`, `fix/preview-stream-thread-safety`,
+  `fix/backup-file-pattern`, `fix/default-family-source-placeholder` (ver
+  `docs/FASE4-PRS.md`).
 - CLAUDE.md, PROGRESS.md, docs/ y .claude/ siguen sin trackear a propósito; decidir su
   rama/destino más adelante (probablemente una rama fork propia, no las de PR).
 
@@ -227,8 +269,8 @@ Estado tras la sesión de diagnóstico del 2026-07-18 (3ª sesión):
 
 ## Bloqueos
 
-- Ninguno bloqueante. El push al fork y la aprobación del re-scope de Fase 1 requieren
-  acción del usuario (ver Próximos pasos arriba).
+- Ninguno bloqueante. Requiere acción del usuario: abrir los 6 PRs y 3 issues en la web
+  de GitHub siguiendo `docs/FASE4-PRS.md` (no hay `gh` CLI autenticado).
 
 ## Historial de sesiones
 

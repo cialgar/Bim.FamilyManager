@@ -192,15 +192,18 @@ Reemplaza el escaneo por sesión de `DirectoryFileCache` por un índice persiste
 
 Deuda técnica detectada en la revisión de código (detalle en ARCHITECTURE.md § Deuda técnica):
 
-1. `DirectoryFileCache.GetImmediateSubfolders` va a disco en cada llamada pese a ser "cache" → servir desde `_folderFileMap`.
-2. `GetDescriptionFiles` hace escaneo en vivo (`Directory.GetFiles` recursivo) en cada enumeración → cachear junto a los .rfa.
-3. `catch { }` vacíos silencian errores de IO → loggear con el `ILogger` ya inyectado.
-4. `PreviewStream` estático compartido con `Position = 0` no es thread-safe → devolver copia o sincronizar.
-5. `BackupRegex` solo reconoce backups de 4 dígitos (`.0001.rfa`) → cubrir el patrón real de Revit.
-6. Preparar como PRs pequeños e independientes al upstream (buena relación con scotec + visibilidad; mantener el fork cerca de upstream reduce el costo de sincronizar).
+1. [x] `DirectoryFileCache.GetImmediateSubfolders` va a disco en cada llamada pese a ser "cache" → servido desde mapa padre→subcarpetas construido en `InitializeAsync` (rama `fix/directory-file-cache`).
+2. [x] `GetDescriptionFiles` hace escaneo en vivo (`Directory.GetFiles` recursivo) en cada enumeración → cacheado junto a los .rfa (misma rama).
+3. [x] `catch { }` vacíos silencian errores de IO → `DirectoryFileCache` acepta `ILogger` opcional y loggea warnings (misma rama). Hallazgo colateral incluido: `OnReload` no reseteaba `_fileCache` (Reload mezclaba subcarpetas frescas con familias stale).
+4. [x] `PreviewStream` estático compartido con `Position = 0` no es thread-safe → `byte[]` inmutable + `MemoryStream` de solo lectura por acceso, en `DirectorySource`, `AzureStorageSource` y `Folder` (rama `fix/preview-stream-thread-safety`).
+5. [x] `BackupRegex` solo reconoce backups de 4 dígitos (`.0001.rfa`) → `\.\d{4,}\.rfa$` + IgnoreCase en ambas fuentes; el propio `FileBackupHelper` genera `.10000` tras `.9999` y compara IgnoreCase (rama `fix/backup-file-pattern`). Mismo fix aplicado al `IndexScanner` del fork.
+6. [x] Preparados como 6 PRs pequeños (los 5 fixes + panel vacío/logging de Fase 0 + fuente fantasma `X:\`), ramas pusheadas al fork sobre `develop` upstream, compilados sin errores. Cuerpos, URLs de compare y orden de apertura en `docs/FASE4-PRS.md`. Los ítems 1-3 van en un solo PR (misma clase, ~40 líneas compartidas: separados generarían conflictos entre sí).
+
+Issues menores a `scotec-revit` (exponer Category, InvariantCulture en `updated`, stream del loader sin disponer): documentados como drafts en `docs/FASE4-PRS.md`, no como PRs (repo ajeno, decisiones de API del maintainer).
 
 ### Criterios de aceptación
-- [ ] Fixes con tests donde sea posible; al menos 2 PRs abiertos upstream.
+
+- [x] Fixes con tests donde sea posible (proyectos upstream sin test harness → verificación por build + revisión; el fix espejo del fork corre con los 51 tests); al menos 2 PRs abiertos upstream. **Pendiente solo el clic final del usuario en la web** (no hay `gh` CLI): las 6 ramas y sus cuerpos de PR están listos en `docs/FASE4-PRS.md`.
 
 ---
 
