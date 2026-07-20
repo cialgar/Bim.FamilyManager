@@ -23,7 +23,7 @@ namespace Bim.FamilyManager.Index;
 /// </remarks>
 public sealed class IndexScanner
 {
-    private static readonly Regex BackupRegex = new(@"\.\d{4}\.rfa$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex BackupRegex = new(@"\.\d{4,}\.rfa$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly FamilyIndex _index;
 
