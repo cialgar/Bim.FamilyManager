@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Azure.Storage.Blobs;
@@ -38,7 +38,7 @@ public sealed class AzureStorageSource : FamilySource<AzureStorageSourceOptions>
     public delegate AzureStorageSource Factory(AzureStorageSourceOptions options);
 
     private static readonly byte[] PreviewImage;
-    private static readonly Regex BackupRegex = new(@"\.\d{4}\.rfa$", RegexOptions.Compiled);
+    private static readonly Regex BackupRegex = new(@"\.\d{4,}\.rfa$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private readonly IAadAuthService _authService;
     private AzureBlobCache? _blobCache;
     private BlobContainerClient? _blobContainerClient;

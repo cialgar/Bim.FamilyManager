@@ -31,7 +31,7 @@ public sealed class DirectorySource : FamilySource<DirectorySourceOptions>
     /// <returns>A new instance of <see cref="DirectorySource" /> configured with the specified options.</returns>
     public delegate DirectorySource Factory(DirectorySourceOptions options);
 
-    private static readonly Regex BackupRegex = new(@"\.\d{4}\.rfa$", RegexOptions.Compiled);
+    private static readonly Regex BackupRegex = new(@"\.\d{4,}\.rfa$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly byte[] PreviewImage;
     private readonly FamilyInfoCache _familyInfoCache;
     private readonly ILogger<DirectorySource> _logger;
